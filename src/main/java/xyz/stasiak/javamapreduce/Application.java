@@ -2,15 +2,18 @@ package xyz.stasiak.javamapreduce;
 
 import xyz.stasiak.javamapreduce.cli.CommandLineParser;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
+import xyz.stasiak.javamapreduce.files.FileManager;
 
 import java.io.IOException;
+import java.util.Properties;
 import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
-class Application {
+public class Application {
     private static final Logger LOGGER = Logger.getLogger(Application.class.getName());
+    private static final Properties properties = new Properties();
     private final CommandLineParser parser;
     private final Random random;
 
@@ -18,10 +21,24 @@ class Application {
         try {
             LogManager.getLogManager().readConfiguration(
                     Application.class.getClassLoader().getResourceAsStream("logging.properties"));
+            loadProperties();
         } catch (IOException e) {
-            System.err.println("Could not load logging configuration");
+            System.err.println("Could not load configuration");
             e.printStackTrace();
         }
+    }
+
+    private static void loadProperties() throws IOException {
+        try (var input = Application.class.getClassLoader().getResourceAsStream("application.properties")) {
+            if (input == null) {
+                throw new IllegalStateException("Unable to find application.properties");
+            }
+            properties.load(input);
+        }
+    }
+
+    public static Properties getProperties() {
+        return properties;
     }
 
     Application() {
@@ -57,13 +74,17 @@ class Application {
                 continue;
             }
 
-            if (processCommand(commandWithArguments)) {
-                return;
+            try {
+                if (processCommand(commandWithArguments)) {
+                    return;
+                }
+            } catch (IOException e) {
+                LOGGER.severe("Failed to process command: " + e.getMessage());
             }
         }
     }
 
-    private boolean processCommand(CommandWithArguments commandWithArguments) {
+    private boolean processCommand(CommandWithArguments commandWithArguments) throws IOException {
         return switch (commandWithArguments.command()) {
             case START -> {
                 handleStart(commandWithArguments);
@@ -80,9 +101,10 @@ class Application {
         };
     }
 
-    int handleStart(CommandWithArguments command) {
+    int handleStart(CommandWithArguments command) throws IOException {
         var parameters = command.toProcessingParameters();
         var processingId = random.nextInt(1_000_000_000);
+        FileManager.createPublicDirectories(processingId, parameters.outputDirectory());
         LOGGER.info("(%d) [%s] Starting processing with parameters: %s".formatted(processingId,
                 Application.class.getSimpleName(), parameters));
         return processingId;
