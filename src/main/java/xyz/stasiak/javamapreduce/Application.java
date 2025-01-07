@@ -9,9 +9,10 @@ import java.util.Scanner;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
-public class Application {
-
+class Application {
     private static final Logger LOGGER = Logger.getLogger(Application.class.getName());
+    private final CommandLineParser parser;
+    private final Random random;
 
     static {
         try {
@@ -23,47 +24,76 @@ public class Application {
         }
     }
 
+    Application() {
+        this.parser = new CommandLineParser();
+        this.random = new Random();
+    }
+
     public static void main(String[] args) {
+        var application = new Application();
+        application.run();
+    }
+
+    void run() {
         LOGGER.info("Starting Java MapReduce application");
-        var parser = new CommandLineParser();
         try (var scanner = new Scanner(System.in)) {
-            while (true) {
-                System.out.print("> ");
-                var line = scanner.nextLine().trim();
+            processCommands(scanner);
+        }
+    }
 
-                if (line.isEmpty()) {
-                    continue;
-                }
+    private void processCommands(Scanner scanner) {
+        while (true) {
+            System.out.print("> ");
+            var line = scanner.nextLine().trim();
 
-                var commandWithArguments = parser.parse(line);
+            if (line.isEmpty()) {
+                continue;
+            }
 
-                if (commandWithArguments == null) {
-                    LOGGER.severe("Unknown command: " + line);
-                    continue;
-                }
+            var commandWithArguments = parser.parse(line);
 
-                switch (commandWithArguments.command()) {
-                    case START -> handleStart(commandWithArguments);
-                    case STATUS -> handleStatus(commandWithArguments);
-                    case EXIT -> {
-                        LOGGER.info("Shutting down");
-                        return;
-                    }
-                }
+            if (commandWithArguments == null) {
+                LOGGER.severe("Unknown command: " + line);
+                continue;
+            }
+
+            if (processCommand(commandWithArguments)) {
+                return;
             }
         }
     }
-    
-    private static void handleStart(CommandWithArguments command) {
-        var parameters = command.toProcessingParameters();
-        var processingId = new Random().nextInt(1_000_000_000);
-        LOGGER.info("(%d) [%s] Starting processing with parameters: %s".formatted(processingId, Application.class.getSimpleName(), parameters));
+
+    private boolean processCommand(CommandWithArguments commandWithArguments) {
+        return switch (commandWithArguments.command()) {
+            case START -> {
+                handleStart(commandWithArguments);
+                yield false;
+            }
+            case STATUS -> {
+                handleStatus(commandWithArguments);
+                yield false;
+            }
+            case EXIT -> {
+                LOGGER.info("Shutting down");
+                yield true;
+            }
+        };
     }
 
-    private static void handleStatus(CommandWithArguments command) {
+    int handleStart(CommandWithArguments command) {
+        var parameters = command.toProcessingParameters();
+        var processingId = random.nextInt(1_000_000_000);
+        LOGGER.info("(%d) [%s] Starting processing with parameters: %s".formatted(processingId,
+                Application.class.getSimpleName(), parameters));
+        return processingId;
+    }
+
+    ProcessingStatus handleStatus(CommandWithArguments command) {
         var processingIdStr = command.arguments().get(0);
         var processingId = Integer.parseInt(processingIdStr);
-        LOGGER.info("(%d) [%s] Checking status of processing: %s".formatted(processingId, Application.class.getSimpleName(), processingId));
-        LOGGER.info("Processing status: %s".formatted(ProcessingStatus.NOT_STARTED)); //TODO
+        LOGGER.info("(%d) [%s] Checking status of processing: %s".formatted(processingId,
+                Application.class.getSimpleName(), processingId));
+        LOGGER.info("Processing status: %s".formatted(ProcessingStatus.FINISHED)); // TODO
+        return ProcessingStatus.FINISHED;
     }
 }
