@@ -2,7 +2,7 @@ package xyz.stasiak.javamapreduce.cli;
 
 import java.util.List;
 
-import xyz.stasiak.javamapreduce.ProcessingParameters;
+import xyz.stasiak.javamapreduce.rmi.ProcessingParameters;
 
 public record CommandWithArguments(Command command, List<String> arguments, String rawCommand) {
     public ProcessingParameters toProcessingParameters() {

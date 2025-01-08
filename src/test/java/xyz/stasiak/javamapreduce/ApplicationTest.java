@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import xyz.stasiak.javamapreduce.cli.Command;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
+import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
 
 import java.io.IOException;
 import java.nio.file.Files;

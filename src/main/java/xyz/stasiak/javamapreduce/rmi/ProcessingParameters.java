@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce;
+package xyz.stasiak.javamapreduce.rmi;
 
 import java.nio.file.Path;
 import java.util.List;

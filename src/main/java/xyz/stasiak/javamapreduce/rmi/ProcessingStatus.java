@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce;
+package xyz.stasiak.javamapreduce.rmi;
 
 public enum ProcessingStatus {
     NOT_STARTED,

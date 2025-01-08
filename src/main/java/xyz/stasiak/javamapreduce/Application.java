@@ -3,6 +3,8 @@ package xyz.stasiak.javamapreduce;
 import xyz.stasiak.javamapreduce.cli.CommandLineParser;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
 import xyz.stasiak.javamapreduce.files.FileManager;
+import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
+import xyz.stasiak.javamapreduce.rmi.RemoteNodeImpl;
 
 import java.io.IOException;
 import java.util.Properties;
@@ -10,12 +12,16 @@ import java.util.Random;
 import java.util.Scanner;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.rmi.RemoteException;
 
 public class Application {
     private static final Logger LOGGER = Logger.getLogger(Application.class.getName());
     private static final Properties properties = new Properties();
     private final CommandLineParser parser;
-    private final Random random;
+    private Registry rmiRegistry;
+    private RemoteNodeImpl remoteNode;
 
     static {
         try {
@@ -43,7 +49,54 @@ public class Application {
 
     Application() {
         this.parser = new CommandLineParser();
-        this.random = new Random();
+        initializeRmiRegistry();
+        initializeRemoteNode();
+        registerShutdownHook();
+    }
+
+    private void initializeRmiRegistry() {
+        try {
+            var rmiPort = Integer.parseInt(getProperty("rmi.port"));
+            rmiRegistry = LocateRegistry.createRegistry(rmiPort);
+            LOGGER.info("RMI Registry started on port " + rmiPort);
+        } catch (RemoteException e) {
+            try {
+                LOGGER.info("Registry already exists, attempting to locate it");
+                rmiRegistry = LocateRegistry.getRegistry();
+                rmiRegistry.list();
+                LOGGER.info("Successfully connected to existing RMI Registry");
+            } catch (RemoteException re) {
+                LOGGER.severe("Failed to create or locate RMI registry: " + re.getMessage());
+                throw new IllegalStateException("Could not initialize RMI registry", re);
+            }
+        }
+    }
+
+    private void initializeRemoteNode() {
+        try {
+            remoteNode = new RemoteNodeImpl();
+            rmiRegistry.rebind("node", remoteNode);
+        } catch (RemoteException e) {
+            LOGGER.severe("Failed to initialize RemoteNode: " + e.getMessage());
+            throw new IllegalStateException("Could not initialize RemoteNode", e);
+        }
+    }
+
+    private void registerShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                if (remoteNode != null) {
+                    rmiRegistry.unbind("node");
+                    LOGGER.info("RemoteNode unbound from registry");
+                }
+            } catch (Exception e) {
+                LOGGER.warning("Error while cleaning up RemoteNode: " + e.getMessage());
+            }
+        }));
+    }
+
+    public static String getProperty(String key) {
+        return System.getProperty(key, properties.getProperty(key));
     }
 
     public static void main(String[] args) {
@@ -96,6 +149,7 @@ public class Application {
             }
             case EXIT -> {
                 LOGGER.info("Shutting down");
+                System.exit(0);
                 yield true;
             }
         };
@@ -103,10 +157,16 @@ public class Application {
 
     int handleStart(CommandWithArguments command) throws IOException {
         var parameters = command.toProcessingParameters();
-        var processingId = random.nextInt(1_000_000_000);
+        var processingId = new Random().nextInt(1_000_000_000);
         FileManager.createPublicDirectories(processingId, parameters.outputDirectory());
         LOGGER.info("(%d) [%s] Starting processing with parameters: %s".formatted(processingId,
                 Application.class.getSimpleName(), parameters));
+        try {
+            remoteNode.startProcessing(processingId, parameters);
+        } catch (RemoteException e) {
+            LOGGER.severe("Failed to start processing: " + e.getMessage());
+            throw new IOException("Failed to start processing", e);
+        }
         return processingId;
     }
 
@@ -115,7 +175,8 @@ public class Application {
         var processingId = Integer.parseInt(processingIdStr);
         LOGGER.info("(%d) [%s] Checking status of processing: %s".formatted(processingId,
                 Application.class.getSimpleName(), processingId));
-        LOGGER.info("Processing status: %s".formatted(ProcessingStatus.FINISHED)); // TODO
-        return ProcessingStatus.FINISHED;
+        var status = remoteNode.getProcessingStatus(processingId);
+        LOGGER.info("Processing status: %s".formatted(status));
+        return status;
     }
 }
