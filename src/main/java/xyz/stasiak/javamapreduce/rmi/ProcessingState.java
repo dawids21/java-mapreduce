@@ -20,7 +20,7 @@ record ProcessingState(
     static ProcessingState create(int processingId, ProcessingParameters parameters, String masterNode,
             List<String> activeNodes, Function<String, Integer> partitionFunction) {
         var nodeAssignments = new HashMap<String, NodeAssignment>();
-        activeNodes.forEach(node -> nodeAssignments.put(node, new NodeAssignment(List.of(), List.of())));
+        activeNodes.forEach(node -> nodeAssignments.put(node, new NodeAssignment(new ArrayList<>(), new ArrayList<>())));
 
         return new ProcessingState(
                 processingId,
