@@ -1,5 +1,6 @@
 package xyz.stasiak.javamapreduce.rmi;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,7 +56,7 @@ record ProcessingState(
         return reduceCompletedNodes.size() == activeNodes.size();
     }
 
-    void updateFileAssignments(Map<String, List<String>> fileAssignments) {
+    void updateFileAssignments(Map<String, List<Path>> fileAssignments) {
         fileAssignments.forEach((node, files) -> {
             var assignment = nodeAssignments.get(node);
             if (assignment != null) {

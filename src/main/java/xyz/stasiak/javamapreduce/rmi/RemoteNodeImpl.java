@@ -1,9 +1,8 @@
 package xyz.stasiak.javamapreduce.rmi;
 
+import java.nio.file.Path;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,9 +13,10 @@ import xyz.stasiak.javamapreduce.Application;
 
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
-    private static final Logger LOGGER = Logger.getLogger(RemoteNodeImpl.class.getName());
+    private static final Logger LOGGER = Logger.getLogger(RemoteNodeImpl.class.getSimpleName());
 
     private final Map<Integer, ProcessingState> processingStates;
+    private final WorkDistributor workDistributor = new WorkDistributor();
 
     public RemoteNodeImpl() throws RemoteException {
         super();
@@ -24,27 +24,28 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     public void startProcessing(int processingId, ProcessingParameters parameters) throws RemoteException {
-        var activeNodes = Arrays.stream(Application.getProperty("known.nodes").split(","))
-                .map(String::trim)
-                .toList();
-        Function<String, Integer> partitionFunction = (String input) -> input.hashCode() % activeNodes.size();
-        var fileAssignments = new HashMap<String, List<String>>();
-        activeNodes.forEach(node -> fileAssignments.put(node, List.of()));
+        var activeNodes = workDistributor.getActiveNodes(processingId);
+        var totalPartitions = workDistributor.calculateTotalPartitions(processingId, activeNodes);
+        Function<String, Integer> partitionFunction = workDistributor.createPartitionFunction(totalPartitions);
+        var fileAssignments = workDistributor.distributeFiles(processingId, activeNodes, parameters.inputDirectory());
         var nodeAddress = Application.getProperty("node.address");
         startNodeProcessing(processingId, parameters, partitionFunction, activeNodes, nodeAddress);
         startMapPhase(processingId, fileAssignments);
     }
 
     @Override
-    public void startNodeProcessing(int processingId, ProcessingParameters parameters, Function<String, Integer> partitionFunction, List<String> activeNodes, String nodeAddress) throws RemoteException {
-        LOGGER.info("(%d) Starting node processing".formatted(processingId));
+    public void startNodeProcessing(int processingId, ProcessingParameters parameters,
+            Function<String, Integer> partitionFunction, List<String> activeNodes, String nodeAddress)
+            throws RemoteException {
+        LOGGER.info("(%d) [%s] Starting node processing".formatted(processingId,
+                this.getClass().getSimpleName()));
         // TODO: create node directories
         var state = ProcessingState.create(processingId, parameters, nodeAddress, activeNodes, partitionFunction);
         processingStates.put(processingId, state);
     }
 
     @Override
-    public void startMapPhase(int processingId, Map<String, List<String>> fileAssignments) throws RemoteException {
+    public void startMapPhase(int processingId, Map<String, List<Path>> fileAssignments) throws RemoteException {
         // TODO set status in Application
         var state = processingStates.get(processingId);
         if (state == null) {
@@ -118,5 +119,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     public ProcessingStatus getProcessingStatus(int processingId) {
         return processingStates.get(processingId).status();
+    }
+
+    @Override
+    public void isAlive() throws RemoteException {
     }
 }
