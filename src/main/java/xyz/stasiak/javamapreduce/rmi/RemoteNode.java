@@ -1,6 +1,5 @@
 package xyz.stasiak.javamapreduce.rmi;
 
-import java.nio.file.Path;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.List;
@@ -13,7 +12,7 @@ public interface RemoteNode extends Remote {
             Function<String, Integer> partitionFunction,
             List<String> activeNodes, String nodeAddress) throws RemoteException;
 
-    void startMapPhase(int processingId, Map<String, List<Path>> fileAssignments) throws RemoteException;
+    void startMapPhase(int processingId, Map<String, List<String>> fileAssignments) throws RemoteException;
 
     void finishMapPhase(int processingId, String node, String masterNode) throws RemoteException;
 

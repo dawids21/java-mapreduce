@@ -48,23 +48,23 @@ class WorkDistributor {
         return activeNodes;
     }
 
-    Map<String, List<Path>> distributeFiles(int processingId, List<String> activeNodes, Path inputDirectory)
+    Map<String, List<String>> distributeFiles(int processingId, List<String> activeNodes, String inputDirectory)
             throws RemoteException {
         var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
         var totalPower = nodesWithPower.values().stream()
                 .mapToInt(NodeInfo::processingPower)
                 .sum();
 
-        List<Path> files;
+        List<String> files;
         try {
-            files = Files.list(inputDirectory).toList();
+            files = Files.list(Path.of(inputDirectory)).map(Path::toString).toList();
         } catch (IOException e) {
             LOGGER.severe("(%d) [%s] Failed to list files in directory %s: %s".formatted(
                     processingId, this.getClass().getSimpleName(), inputDirectory, e.getMessage()));
             throw new RuntimeException("Failed to list files in directory", e);
         }
 
-        var result = new HashMap<String, List<Path>>();
+        var result = new HashMap<String, List<String>>();
         var remainingFiles = new ArrayList<>(files);
         var totalFiles = files.size();
 
@@ -74,7 +74,7 @@ class WorkDistributor {
 
             var powerRatio = (double) nodeInfo.processingPower() / totalPower;
             var fileCount = (int) Math.ceil(totalFiles * powerRatio);
-            var nodeFiles = new ArrayList<Path>();
+            var nodeFiles = new ArrayList<String>();
 
             var nodeFilesCount = Math.min(fileCount, remainingFiles.size());
             for (int i = 0; i < nodeFilesCount; i++) {

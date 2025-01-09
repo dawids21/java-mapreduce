@@ -1,12 +1,6 @@
 package xyz.stasiak.javamapreduce;
 
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import xyz.stasiak.javamapreduce.cli.Command;
-import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
-import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -14,7 +8,14 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.logging.LogManager;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import xyz.stasiak.javamapreduce.cli.Command;
+import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
+import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
 
 class ApplicationTest {
 
@@ -61,7 +62,7 @@ class ApplicationTest {
 
         var startCommand = createStartCommand();
 
-        var processingId = application.handleStart(startCommand);
+        var processingId = application.getRemoteServer().startProcessing(startCommand.toProcessingParameters());
 
         var status = waitForCompletion(processingId);
 
@@ -74,22 +75,16 @@ class ApplicationTest {
                 List.of(inputDir.toString(), outputDir.toString(), TestMapper.class.getName(), TestReducer.class.getName()),
                 "start " + inputDir + " " + outputDir + " " + TestMapper.class.getName() + " " + TestReducer.class.getName());
     }
+
     
-    private CommandWithArguments createStatusCommand(int processingId) {
-        return new CommandWithArguments(
-                Command.STATUS,
-                List.of(String.valueOf(processingId)),
-                "status " + processingId);
-    }
-    
-    private ProcessingStatus waitForCompletion(int processingId) throws InterruptedException {
+    private ProcessingStatus waitForCompletion(int processingId) throws InterruptedException, IOException {
         var status = ProcessingStatus.NOT_STARTED;
         var attempts = 0;
         var maxAttempts = 10;
 
         while (status != ProcessingStatus.FINISHED && attempts < maxAttempts) {
             Thread.sleep(1000);
-            status = application.handleStatus(createStatusCommand(processingId));
+            status = application.getRemoteServer().getProcessingStatus(processingId);
             attempts++;
         }
 

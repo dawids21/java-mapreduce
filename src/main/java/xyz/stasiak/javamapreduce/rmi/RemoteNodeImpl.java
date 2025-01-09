@@ -1,6 +1,5 @@
 package xyz.stasiak.javamapreduce.rmi;
 
-import java.nio.file.Path;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
@@ -45,7 +44,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void startMapPhase(int processingId, Map<String, List<Path>> fileAssignments) throws RemoteException {
+    public void startMapPhase(int processingId, Map<String, List<String>> fileAssignments) throws RemoteException {
         // TODO set status in Application
         var state = processingStates.get(processingId);
         if (state == null) {

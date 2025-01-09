@@ -5,24 +5,18 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
 import java.util.Properties;
-import java.util.Random;
-import java.util.Scanner;
-import java.util.concurrent.CompletableFuture;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.cli.CommandLineParser;
-import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
-import xyz.stasiak.javamapreduce.files.FileManager;
-import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
 import xyz.stasiak.javamapreduce.rmi.RemoteNodeImpl;
+import xyz.stasiak.javamapreduce.rmi.RemoteServerImpl;
 
 public class Application {
     private static final Logger LOGGER = Logger.getLogger(Application.class.getName());
     private static final Properties properties = new Properties();
-    private final CommandLineParser parser;
     private Registry rmiRegistry;
     private RemoteNodeImpl remoteNode;
+    private RemoteServerImpl remoteServer;
 
     static {
         try {
@@ -49,7 +43,7 @@ public class Application {
     }
 
     Application() {
-        this.parser = new CommandLineParser();
+        LOGGER.info("Starting Java MapReduce application");
         initializeRmiRegistry();
         initializeRemoteNode();
         registerShutdownHook();
@@ -77,6 +71,8 @@ public class Application {
         try {
             remoteNode = new RemoteNodeImpl();
             rmiRegistry.rebind("node", remoteNode);
+            remoteServer = new RemoteServerImpl(remoteNode);
+            rmiRegistry.rebind("server", remoteServer);
         } catch (RemoteException e) {
             LOGGER.severe("Failed to initialize RemoteNode: " + e.getMessage());
             throw new IllegalStateException("Could not initialize RemoteNode", e);
@@ -90,96 +86,25 @@ public class Application {
                     rmiRegistry.unbind("node");
                     LOGGER.info("RemoteNode unbound from registry");
                 }
+                if (remoteServer != null) {
+                    rmiRegistry.unbind("server");
+                    LOGGER.info("RemoteServer unbound from registry");
+                }
             } catch (Exception e) {
                 LOGGER.warning("Error while cleaning up RemoteNode: " + e.getMessage());
             }
         }));
     }
 
+    public static void main(String[] args) {
+        new Application();
+    }
+
     public static String getProperty(String key) {
         return System.getProperty(key, properties.getProperty(key));
     }
 
-    public static void main(String[] args) {
-        var application = new Application();
-        application.run();
-    }
-
-    void run() {
-        LOGGER.info("Starting Java MapReduce application");
-        try (var scanner = new Scanner(System.in)) {
-            processCommands(scanner);
-        }
-    }
-
-    private void processCommands(Scanner scanner) {
-        while (true) {
-            System.out.print("> ");
-            var line = scanner.nextLine().trim();
-
-            if (line.isEmpty()) {
-                continue;
-            }
-
-            var commandWithArguments = parser.parse(line);
-
-            if (commandWithArguments == null) {
-                LOGGER.severe("Unknown command: " + line);
-                continue;
-            }
-
-            try {
-                if (processCommand(commandWithArguments)) {
-                    return;
-                }
-            } catch (IOException e) {
-                LOGGER.severe("Failed to process command: " + e.getMessage());
-            }
-        }
-    }
-
-    private boolean processCommand(CommandWithArguments commandWithArguments) throws IOException {
-        return switch (commandWithArguments.command()) {
-            case START -> {
-                handleStart(commandWithArguments);
-                yield false;
-            }
-            case STATUS -> {
-                handleStatus(commandWithArguments);
-                yield false;
-            }
-            case EXIT -> {
-                LOGGER.info("Shutting down");
-                System.exit(0);
-                yield true;
-            }
-        };
-    }
-
-    int handleStart(CommandWithArguments command) throws IOException {
-        var parameters = command.toProcessingParameters();
-        var processingId = new Random().nextInt(1_000_000_000);
-        FileManager.createPublicDirectories(processingId, parameters.outputDirectory());
-        LOGGER.info("(%d) [%s] Starting processing with parameters: %s".formatted(processingId,
-                Application.class.getSimpleName(), parameters));
-        CompletableFuture.runAsync(() -> {
-            try {
-                remoteNode.startProcessing(processingId, parameters);
-            } catch (RemoteException e) {
-                LOGGER.severe("(%d) [%s] Failed to start processing: %s".formatted(
-                        processingId, Application.class.getSimpleName(), e.getMessage()));
-            }
-        });
-        return processingId;
-    }
-
-    ProcessingStatus handleStatus(CommandWithArguments command) {
-        var processingIdStr = command.arguments().get(0);
-        var processingId = Integer.parseInt(processingIdStr);
-        LOGGER.info("(%d) [%s] Checking status of processing: %s".formatted(processingId,
-                Application.class.getSimpleName(), processingId));
-        var status = remoteNode.getProcessingStatus(processingId);
-        LOGGER.info("Processing status: %s".formatted(status));
-        return status;
+    public RemoteServerImpl getRemoteServer() {
+        return remoteServer;
     }
 }

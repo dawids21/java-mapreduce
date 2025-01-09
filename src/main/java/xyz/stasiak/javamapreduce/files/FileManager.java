@@ -1,12 +1,13 @@
 package xyz.stasiak.javamapreduce.files;
 
+import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.logging.Logger;
-import java.io.IOException;
+
 import xyz.stasiak.javamapreduce.Application;
 
 public class FileManager {
@@ -50,12 +51,12 @@ public class FileManager {
         Files.createDirectories(getMergeFilesDirectory(processingId));
     }
 
-    public static void createPublicDirectories(int processingId, Path outputDirectory) throws IOException {
+    public static void createPublicDirectories(int processingId, String outputDirectory) throws IOException {
         Files.createDirectories(getPartitionFilesDirectory(processingId));
-        if (Files.exists(outputDirectory)) {
-            deleteDirectory(outputDirectory);
+        if (Files.exists(Path.of(outputDirectory))) {
+            deleteDirectory(Path.of(outputDirectory));
         }
-        Files.createDirectories(outputDirectory);
+        Files.createDirectories(Path.of(outputDirectory));
     }
 
     public static void removeEmptyPartitionDirectories(int processingId) throws IOException {
