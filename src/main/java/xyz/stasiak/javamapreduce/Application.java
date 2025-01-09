@@ -1,20 +1,21 @@
 package xyz.stasiak.javamapreduce;
 
+import java.io.IOException;
+import java.rmi.RemoteException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
+import java.util.Properties;
+import java.util.Random;
+import java.util.Scanner;
+import java.util.concurrent.CompletableFuture;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
+
 import xyz.stasiak.javamapreduce.cli.CommandLineParser;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
 import xyz.stasiak.javamapreduce.files.FileManager;
 import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
 import xyz.stasiak.javamapreduce.rmi.RemoteNodeImpl;
-
-import java.io.IOException;
-import java.util.Properties;
-import java.util.Random;
-import java.util.Scanner;
-import java.util.logging.LogManager;
-import java.util.logging.Logger;
-import java.rmi.registry.LocateRegistry;
-import java.rmi.registry.Registry;
-import java.rmi.RemoteException;
 
 public class Application {
     private static final Logger LOGGER = Logger.getLogger(Application.class.getName());
@@ -161,12 +162,14 @@ public class Application {
         FileManager.createPublicDirectories(processingId, parameters.outputDirectory());
         LOGGER.info("(%d) [%s] Starting processing with parameters: %s".formatted(processingId,
                 Application.class.getSimpleName(), parameters));
-        try {
-            remoteNode.startProcessing(processingId, parameters);
-        } catch (RemoteException e) {
-            LOGGER.severe("Failed to start processing: " + e.getMessage());
-            throw new IOException("Failed to start processing", e);
-        }
+        CompletableFuture.runAsync(() -> {
+            try {
+                remoteNode.startProcessing(processingId, parameters);
+            } catch (RemoteException e) {
+                LOGGER.severe("(%d) [%s] Failed to start processing: %s".formatted(
+                        processingId, Application.class.getSimpleName(), e.getMessage()));
+            }
+        });
         return processingId;
     }
 
