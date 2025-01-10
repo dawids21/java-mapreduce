@@ -13,6 +13,7 @@ import xyz.stasiak.javamapreduce.files.FileManager;
 
 public class MapPhaseCoordinator {
     private static final Logger LOGGER = Logger.getLogger(MapPhaseCoordinator.class.getName());
+    private static final int MAX_RETRIES = 1;
     private final int processingId;
     private final String mapperClassName;
     private final Path inputDirectory;
@@ -33,15 +34,46 @@ public class MapPhaseCoordinator {
     public MapPhaseResult execute() {
         LOGGER.info("(%d) [%s] Starting map phase with %d files".formatted(processingId,
                 MapPhaseCoordinator.class.getSimpleName(), files.size()));
+
+        var attempt = 0;
+
+        try {
+            while (attempt <= MAX_RETRIES) {
+                var result = processFiles(files);
+
+                if (result.failedFiles().isEmpty()) {
+                    LOGGER.info("(%d) [%s] Map phase completed successfully".formatted(processingId,
+                            MapPhaseCoordinator.class.getSimpleName()));
+                    return new MapPhaseResult(result.processedCount());
+                }
+
+                LOGGER.info("(%d) [%s] Retrying map phase for all files"
+                        .formatted(processingId, MapPhaseCoordinator.class.getSimpleName()));
+                attempt++;
+            }
+
+            LOGGER.severe(
+                    "(%d) [%s] Map phase failed".formatted(processingId, MapPhaseCoordinator.class.getSimpleName()));
+            throw new RuntimeException("Map phase failed");
+        } finally {
+            executor.close();
+        }
+    }
+
+    private record ProcessingResult(int processedCount, List<Path> failedFiles) {
+    }
+
+    private ProcessingResult processFiles(List<Path> filesToProcess) {
         var mapper = MapperFactory.createMapper(mapperClassName);
         var mapFilesDirectory = FileManager.getMapFilesDirectory(processingId);
         var partitionFilesDirectory = FileManager.getPartitionFilesDirectory(processingId);
         var futures = new ArrayList<Future<MapPartitionResult>>();
 
-        for (var file : files) {
+        for (var file : filesToProcess) {
             var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper);
             var mapTaskExecutor = new MapTaskExecutor<>(mapTask);
-            var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file), partitionFilesDirectory, partitionFunction);
+            var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
+                    partitionFilesDirectory, partitionFunction);
             var partitionTaskExecutor = new PartitionTaskExecutor(partitionTask);
             futures.add(this.executor.submit(() -> {
                 var mapResult = mapTaskExecutor.execute();
@@ -63,31 +95,17 @@ public class MapPhaseCoordinator {
             try {
                 var result = futures.get(i).get();
                 if (!result.isSuccess()) {
-                    failedFiles.add(files.get(i));
+                    failedFiles.add(filesToProcess.get(i));
                 } else {
                     processedFiles++;
                 }
             } catch (Exception e) {
                 LOGGER.severe("(%d) [%s] Error executing map task: %s".formatted(processingId,
                         MapPhaseCoordinator.class.getSimpleName(), e.getMessage()));
-                failedFiles.add(files.get(i));
-                executor.close();
-                throw new RuntimeException("Map phase failed", e);
+                failedFiles.add(filesToProcess.get(i));
             }
         }
 
-        if (!failedFiles.isEmpty()) {
-            var message = "(%d) [%s] Map phase failed with %d failed files".formatted(processingId,
-                    MapPhaseCoordinator.class.getSimpleName(), failedFiles.size());
-            LOGGER.severe(message);
-            executor.close();
-            throw new RuntimeException(message);
-        }
-
-        LOGGER.info("(%d) [%s] Map phase completed successfully".formatted(processingId,
-                MapPhaseCoordinator.class.getSimpleName()));
-        executor.close();
-
-        return new MapPhaseResult(processedFiles);
+        return new ProcessingResult(processedFiles, failedFiles);
     }
 }
