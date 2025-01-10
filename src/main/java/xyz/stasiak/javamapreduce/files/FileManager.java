@@ -59,6 +59,12 @@ public class FileManager {
         Files.createDirectories(Path.of(outputDirectory));
     }
 
+    public static void createPartitionDirectories(int processingId, int totalPartitions) throws IOException {
+        for (int i = 0; i < totalPartitions; i++) {
+            Files.createDirectories(getPartitionDirectory(processingId, i));
+        }
+    }
+
     public static void removeEmptyPartitionDirectories(int processingId) throws IOException {
         try (var paths = Files.list(getPartitionFilesDirectory(processingId))) {
             paths.forEach(path -> {

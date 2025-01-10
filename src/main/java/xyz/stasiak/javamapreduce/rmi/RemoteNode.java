@@ -10,11 +10,11 @@ public interface RemoteNode extends Remote {
 
     void startNodeProcessing(int processingId, ProcessingParameters parameters,
             Function<String, Integer> partitionFunction,
-            List<String> activeNodes, String nodeAddress) throws RemoteException;
+            String masterNode) throws RemoteException;
 
     void startMapPhase(int processingId, Map<String, List<String>> fileAssignments) throws RemoteException;
 
-    void finishMapPhase(int processingId, String node, String masterNode) throws RemoteException;
+    void finishMapPhase(int processingId, String node) throws RemoteException;
 
     void startReducePhase(int processingId, Map<String, List<Integer>> partitionAssignments) throws RemoteException;
 

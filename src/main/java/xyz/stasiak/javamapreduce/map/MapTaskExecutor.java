@@ -10,12 +10,10 @@ import xyz.stasiak.javamapreduce.files.FileManager;
 
 class MapTaskExecutor<K, V> {
     private static final Logger LOGGER = Logger.getLogger(MapTaskExecutor.class.getName());
-    private final MapTask task;
-    private final Mapper<K, V> mapper;
+    private final MapTask<K, V> task;
 
-    MapTaskExecutor(MapTask task, Mapper<K, V> mapper) {
+    MapTaskExecutor(MapTask<K, V> task) {
         this.task = task;
-        this.mapper = mapper;
     }
 
     MapResult execute() {
@@ -24,16 +22,17 @@ class MapTaskExecutor<K, V> {
 
         while (currentTask.canRetry()) {
             try {
+                LOGGER.info("Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = FileManager.getMapFilesDirectory(currentTask.processingId())
                         .resolve(currentTask.inputFile().getFileName());
                 processFile(currentTask.inputFile(), outputFile);
-                result = MapResult.success(outputFile, task.maxRetries() - currentTask.maxRetries());
+                result = MapResult.success(outputFile);
                 break;
             } catch (Exception e) {
                 LOGGER.warning("Error processing file: %s %s. Retries left: %d"
                         .formatted(currentTask.inputFile(), e.getMessage(), currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
-                result = MapResult.failure(e.getMessage(), task.maxRetries() - currentTask.maxRetries());
+                result = MapResult.failure(e.getMessage());
             }
         }
 
@@ -51,6 +50,7 @@ class MapTaskExecutor<K, V> {
     }
 
     private void processLine(String line, BufferedWriter writer) throws IOException {
+        var mapper = task.mapper();
         var keyValues = mapper.map(line);
         for (var keyValue : keyValues) {
             writer.write(keyValue.key().toString());

@@ -57,7 +57,7 @@ class WorkDistributor {
 
         List<String> files;
         try {
-            files = Files.list(Path.of(inputDirectory)).map(Path::toString).toList();
+            files = Files.list(Path.of(inputDirectory)).map(path -> path.getFileName().toString()).toList();
         } catch (IOException e) {
             LOGGER.severe("(%d) [%s] Failed to list files in directory %s: %s".formatted(
                     processingId, this.getClass().getSimpleName(), inputDirectory, e.getMessage()));

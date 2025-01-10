@@ -21,29 +21,42 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     private static final Logger LOGGER = Logger.getLogger(RemoteNodeImpl.class.getSimpleName());
 
     private final Map<Integer, ProcessingState> processingStates;
+    private final Map<Integer, ProcessingInfo> processingInfos;
     private final WorkDistributor workDistributor = new WorkDistributor();
 
     public RemoteNodeImpl() throws RemoteException {
         super();
         this.processingStates = new ConcurrentHashMap<>();
+        this.processingInfos = new ConcurrentHashMap<>();
     }
 
     public void startProcessing(int processingId, ProcessingParameters parameters) throws RemoteException {
         var activeNodes = workDistributor.getActiveNodes(processingId);
+        var processingState = ProcessingState.create(processingId, activeNodes);
+
         var totalPartitions = workDistributor.calculateTotalPartitions(processingId, activeNodes);
         Function<String, Integer> partitionFunction = workDistributor.createPartitionFunction(totalPartitions);
+        try {
+            FileManager.createPartitionDirectories(processingId, totalPartitions);
+        } catch (IOException e) {
+            LOGGER.severe("(%d) [%s] Failed to create partition directories: %s".formatted(processingId,
+                    this.getClass().getSimpleName(), e.getMessage()));
+            throw new RuntimeException("Failed to create partition directories", e);
+        }
         var fileAssignments = workDistributor.distributeFiles(processingId, activeNodes, parameters.inputDirectory());
-        var nodeAddress = Application.getProperty("node.address");
+        processingState.updateFileAssignments(fileAssignments);
+        processingStates.put(processingId, processingState);
 
+        var nodeAddress = Application.getProperty("node.address");
         activeNodes.forEach(node -> CompletableFuture.runAsync(() -> {
             try {
                 if (node.equals(nodeAddress)) {
-                    startNodeProcessing(processingId, parameters, partitionFunction, activeNodes, nodeAddress);
+                    startNodeProcessing(processingId, parameters, partitionFunction, nodeAddress);
+                    processingStates.get(processingId).updateStatus(ProcessingStatus.MAPPING);
                     startMapPhase(processingId, fileAssignments);
                 } else {
                     var remoteNode = RmiUtil.getRemoteNode(node);
-                    remoteNode.startNodeProcessing(processingId, parameters, partitionFunction, activeNodes,
-                            nodeAddress);
+                    remoteNode.startNodeProcessing(processingId, parameters, partitionFunction, nodeAddress);
                     remoteNode.startMapPhase(processingId, fileAssignments);
                 }
             } catch (Exception e) {
@@ -57,7 +70,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     @Override
     public void startNodeProcessing(int processingId, ProcessingParameters parameters,
-            Function<String, Integer> partitionFunction, List<String> activeNodes, String nodeAddress)
+            Function<String, Integer> partitionFunction, String masterNode)
             throws RemoteException {
         LOGGER.info("(%d) [%s] Starting node processing".formatted(processingId,
                 this.getClass().getSimpleName()));
@@ -68,23 +81,25 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     this.getClass().getSimpleName(), e.getMessage()));
             throw new RemoteException("Failed to create directories", e);
         }
-        var state = ProcessingState.create(processingId, parameters, nodeAddress, activeNodes, partitionFunction);
-        processingStates.put(processingId, state);
+        var processingInfo = new ProcessingInfo(processingId, parameters, masterNode, partitionFunction);
+        processingInfos.put(processingId, processingInfo);
     }
 
     @Override
     public void startMapPhase(int processingId, Map<String, List<String>> fileAssignments) throws RemoteException {
         LOGGER.info("(%d) [%s] Starting map phase".formatted(processingId, this.getClass().getSimpleName()));
-        var state = processingStates.get(processingId);
-        state.updateStatus(ProcessingStatus.MAPPING);
-
-        state.updateFileAssignments(fileAssignments);
-        var files = fileAssignments.get(Application.getProperty("node.address"));
-        var filePaths = files.stream().map(Path::of).toList();
+        var processingInfo = processingInfos.get(processingId);
+        var files = fileAssignments.get(Application.getProperty("node.address"))
+                .stream().map(Path::of).toList();
 
         try {
-            var coordinator = new MapPhaseCoordinator(processingId, state.parameters().mapperClassName(), filePaths);
-            var results = coordinator.execute();
+            var coordinator = new MapPhaseCoordinator(processingId, processingInfo.parameters().mapperClassName(),
+                    Path.of(processingInfo.parameters().inputDirectory()), files, processingInfo.partitionFunction());
+            coordinator.execute();
+            var nodeAddress = Application.getProperty("node.address");
+            var masterNode = processingInfo.masterNode();
+            var remoteNode = RmiUtil.getRemoteNode(masterNode);
+            remoteNode.finishMapPhase(processingId, nodeAddress);
             // TODO call finishMapPhase on master
         } catch (Exception e) {
             LOGGER.severe("(%d) [%s] Map phase failed: %s".formatted(processingId,
@@ -94,7 +109,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void finishMapPhase(int processingId, String node, String masterNode) throws RemoteException {
+    public void finishMapPhase(int processingId, String node) throws RemoteException {
         var state = processingStates.get(processingId);
         if (state == null) {
             throw new IllegalStateException("Processing %d not found".formatted(processingId));

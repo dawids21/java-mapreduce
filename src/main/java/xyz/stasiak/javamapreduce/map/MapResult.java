@@ -4,16 +4,15 @@ import java.nio.file.Path;
 
 record MapResult(
         boolean success,
-        Path outputFile,
         String error,
-        int retryCount) {
+        Path outputFile) {
 
-    static MapResult success(Path outputFile, int retryCount) {
-        return new MapResult(true, outputFile, null, retryCount);
+    static MapResult success(Path outputFile) {
+        return new MapResult(true, null, outputFile);
     }
 
-    static MapResult failure(String error, int retryCount) {
-        return new MapResult(false, null, error, retryCount);
+    static MapResult failure(String error) {
+        return new MapResult(false, error, null);
     }
 
     boolean requiresRetry() {

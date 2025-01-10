@@ -17,7 +17,7 @@ public class MapperFactory {
             return (Mapper<K, V>) mapperClass.getDeclaredConstructor().newInstance();
         } catch (ReflectiveOperationException e) {
             LOGGER.severe("Failed to create mapper: " + e.getMessage());
-            throw new RuntimeException("Failed to create mapper: " + e.getMessage(), e);
+            throw new RuntimeException("Failed to create mapper", e);
         }
     }
 }

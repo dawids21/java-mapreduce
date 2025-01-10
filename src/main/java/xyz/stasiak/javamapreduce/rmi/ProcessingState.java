@@ -1,50 +1,56 @@
 package xyz.stasiak.javamapreduce.rmi;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 record ProcessingState(
         int processingId,
-        ProcessingParameters parameters,
-        String masterNode,
         List<String> activeNodes,
-        List<String> mapCompletedNodes,
-        List<String> reduceCompletedNodes,
+        ProcessingStatus status,
         Map<String, NodeAssignment> nodeAssignments,
-        Function<String, Integer> partitionFunction,
-        ProcessingStatus status) {
+        Set<String> mapCompletedNodes,
+        Set<String> reduceCompletedNodes,
+        AtomicInteger processedFiles) {
 
-    static ProcessingState create(int processingId, ProcessingParameters parameters, String masterNode,
-            List<String> activeNodes, Function<String, Integer> partitionFunction) {
-        var nodeAssignments = new HashMap<String, NodeAssignment>();
-        activeNodes.forEach(node -> nodeAssignments.put(node, new NodeAssignment(new ArrayList<>(), new ArrayList<>())));
+    static ProcessingState create(int processingId, List<String> activeNodes) {
+        var nodeAssignments = activeNodes.stream()
+                .collect(Collectors.toMap(
+                        node -> node,
+                        _ -> new NodeAssignment(new ArrayList<>(), new ArrayList<>())));
 
         return new ProcessingState(
                 processingId,
-                parameters,
-                masterNode,
-                activeNodes,
-                new ArrayList<>(),
-                new ArrayList<>(),
+                new ArrayList<>(activeNodes),
+                ProcessingStatus.NOT_STARTED,
                 nodeAssignments,
-                partitionFunction,
-                ProcessingStatus.NOT_STARTED);
+                ConcurrentHashMap.newKeySet(),
+                ConcurrentHashMap.newKeySet(),
+                new AtomicInteger(0));
+    }
+
+    void incrementProcessedFiles() {
+        processedFiles.incrementAndGet();
+    }
+
+    boolean allFilesProcessed() {
+        var totalFiles = nodeAssignments.values().stream().mapToInt(nodeAssignment -> nodeAssignment.files().size()).sum();
+        return processedFiles.get() == totalFiles;
     }
 
     ProcessingState updateStatus(ProcessingStatus status) {
         return new ProcessingState(
                 processingId,
-                parameters,
-                masterNode,
                 activeNodes,
+                status,
+                nodeAssignments,
                 mapCompletedNodes,
                 reduceCompletedNodes,
-                nodeAssignments,
-                partitionFunction,
-                status);
+                processedFiles);
     }
 
     boolean isMapPhaseCompleted() {

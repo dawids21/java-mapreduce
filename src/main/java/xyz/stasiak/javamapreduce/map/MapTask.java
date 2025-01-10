@@ -2,21 +2,19 @@ package xyz.stasiak.javamapreduce.map;
 
 import java.nio.file.Path;
 
-record MapTask(
+record MapTask<K, V>(
         int processingId,
         Path inputFile,
         Path outputDirectory,
-        String mapperClassName,
-        int maxRetries,
-        String nodeAddress) {
+        Mapper<K, V> mapper,
+        int maxRetries) {
 
-    static MapTask create(int processingId, Path inputFile, Path outputDirectory, String mapperClassName,
-            String nodeAddress) {
-        return new MapTask(processingId, inputFile, outputDirectory, mapperClassName, 3, nodeAddress);
+    static <K, V> MapTask<K, V> create(int processingId, Path inputFile, Path outputDirectory, Mapper<K, V> mapper) {
+        return new MapTask<>(processingId, inputFile, outputDirectory, mapper, 3);
     }
 
-    MapTask withIncrementedRetries() {
-        return new MapTask(processingId, inputFile, outputDirectory, mapperClassName, maxRetries - 1, nodeAddress);
+    MapTask<K, V> withIncrementedRetries() {
+        return new MapTask<>(processingId, inputFile, outputDirectory, mapper, maxRetries - 1);
     }
 
     boolean canRetry() {
