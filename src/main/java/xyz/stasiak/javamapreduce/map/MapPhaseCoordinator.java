@@ -71,7 +71,7 @@ public class MapPhaseCoordinator {
 
         for (var file : filesToProcess) {
             var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper);
-            var mapTaskExecutor = new MapTaskExecutor<>(mapTask);
+            var mapTaskExecutor = new MapTaskExecutor(mapTask);
             var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
                     partitionFilesDirectory, partitionFunction);
             var partitionTaskExecutor = new PartitionTaskExecutor(partitionTask);

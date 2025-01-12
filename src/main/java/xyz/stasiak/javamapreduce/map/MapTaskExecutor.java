@@ -8,11 +8,11 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.files.FileManager;
 
-class MapTaskExecutor<K, V> {
+class MapTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(MapTaskExecutor.class.getName());
-    private final MapTask<K, V> task;
+    private final MapTask task;
 
-    MapTaskExecutor(MapTask<K, V> task) {
+    MapTaskExecutor(MapTask task) {
         this.task = task;
     }
 
