@@ -209,10 +209,23 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         if (state.isReducePhaseCompleted()) {
             LOGGER.info("(%d) [%s] Reduce phase completed on all nodes".formatted(
                     processingId, this.getClass().getSimpleName()));
-            processingStates.compute(processingId, (_, processingState) -> processingState.updateStatus(ProcessingStatus.FINISHED));
-
-            LOGGER.info("(%d) [%s] Processing completed successfully".formatted(
-                    processingId, this.getClass().getSimpleName()));
+            var updatedState = processingStates.compute(processingId,
+                    (_, processingState) -> processingState.updateStatus(ProcessingStatus.FINISHED));
+            updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
+                try {
+                    if (activeNode.equals(Application.getProperty("node.address"))) {
+                        finishProcessing(processingId);
+                    } else {
+                        var remoteNode = RmiUtil.getRemoteNode(activeNode);
+                        remoteNode.finishProcessing(processingId);
+                    }
+                } catch (Exception e) {
+                    LOGGER.severe("(%d) [%s] Failed to finish processing on %s: %s".formatted(
+                            processingId, this.getClass().getSimpleName(), activeNode, e.getMessage()));
+                    throw new CompletionException(e);
+                    // TODO handle failure, node may be dead
+                }
+            }));
         }
     }
 
@@ -223,8 +236,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     @Override
     public void finishProcessing(int processingId) throws RemoteException {
-        //TODO remove from processingInfo
-        //TODO set status to FINISHED
+        processingInfos.remove(processingId);
+        LOGGER.info("(%d) [%s] Processing completed successfully".formatted(
+                processingId, this.getClass().getSimpleName()));
     }
 
     @Override
