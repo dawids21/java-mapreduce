@@ -185,14 +185,18 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         }
 
         try {
+            var outputDirectory = Path.of(processingInfo.parameters().outputDirectory());
+
             var coordinator = new ReducePhaseCoordinator(
                     processingId,
                     processingInfo.parameters().reducerClassName(),
-                    nodePartitions);
-            coordinator.execute();
+                    nodePartitions,
+                    outputDirectory);
+            var result = coordinator.execute();
+
             var masterNode = processingInfo.masterNode();
             var remoteNode = RmiUtil.getRemoteNode(masterNode);
-            remoteNode.finishReducePhase(processingId, nodeAddress, masterNode);
+            remoteNode.finishReducePhase(processingId, nodeAddress, result.processedPartitions());
         } catch (Exception e) {
             LOGGER.severe("(%d) [%s] Reduce phase failed: %s".formatted(
                     processingId, this.getClass().getSimpleName(), e.getMessage()));
@@ -201,14 +205,23 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void finishReducePhase(int processingId, String node, String masterNode) throws RemoteException {
-        // TODO call master
+    public void finishReducePhase(int processingId, String node, int processedPartitions)
+            throws RemoteException {
         var state = processingStates.get(processingId);
         if (state == null) {
             throw new IllegalStateException("Processing %d not found".formatted(processingId));
         }
 
-        // TODO finish processing
+        state.addProcessedPartitions(processedPartitions);
+
+        if (state.isReducePhaseCompleted()) {
+            LOGGER.info("(%d) [%s] Reduce phase completed on all nodes".formatted(
+                    processingId, this.getClass().getSimpleName()));
+            state.updateStatus(ProcessingStatus.FINISHED);
+
+            LOGGER.info("(%d) [%s] Processing completed successfully".formatted(
+                    processingId, this.getClass().getSimpleName()));
+        }
     }
 
     @Override

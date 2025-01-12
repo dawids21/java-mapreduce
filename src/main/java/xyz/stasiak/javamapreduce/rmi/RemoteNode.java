@@ -18,7 +18,7 @@ public interface RemoteNode extends Remote {
 
     void startReducePhase(int processingId, Map<String, List<Integer>> partitionAssignments) throws RemoteException;
 
-    void finishReducePhase(int processingId, String node, String masterNode) throws RemoteException;
+    void finishReducePhase(int processingId, String node, int processedPartitions) throws RemoteException;
 
     void notifyNodeFailure(int processingId, String failedNode, String masterNode) throws RemoteException;
 

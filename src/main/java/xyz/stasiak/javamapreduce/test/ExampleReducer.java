@@ -1,10 +1,10 @@
-package xyz.stasiak.javamapreduce;
+package xyz.stasiak.javamapreduce.test;
 
 import java.util.List;
 
 import xyz.stasiak.javamapreduce.reduce.Reducer;
 
-public class TestReducer implements Reducer {
+public class ExampleReducer implements Reducer {
 
     @Override
     public String reduce(String key, List<String> values) {

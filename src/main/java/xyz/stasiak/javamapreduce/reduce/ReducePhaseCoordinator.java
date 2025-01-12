@@ -1,6 +1,7 @@
 package xyz.stasiak.javamapreduce.reduce;
 
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -17,12 +18,15 @@ public class ReducePhaseCoordinator {
     private final int processingId;
     private final String reducerClassName;
     private final List<Integer> partitionAssignments;
+    private final Path outputDirectory;
     private final ExecutorService executor;
 
-    public ReducePhaseCoordinator(int processingId, String reducerClassName, List<Integer> partitionAssignments) {
+    public ReducePhaseCoordinator(int processingId, String reducerClassName, List<Integer> partitionAssignments,
+            Path outputDirectory) {
         this.processingId = processingId;
         this.reducerClassName = reducerClassName;
         this.partitionAssignments = partitionAssignments;
+        this.outputDirectory = outputDirectory;
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
     }
 
@@ -59,7 +63,8 @@ public class ReducePhaseCoordinator {
     }
 
     private ProcessingResult processPartitions(List<Integer> partitionsToProcess) {
-        var futures = new ArrayList<Future<MergeResult>>();
+        var reducer = ReducerFactory.createReducer(reducerClassName);
+        var futures = new ArrayList<Future<MergeReduceResult>>();
         var mergeFilesDirectory = FileManager.getMergeFilesDirectory(processingId);
 
         for (var partitionId : partitionsToProcess) {
@@ -72,7 +77,22 @@ public class ReducePhaseCoordinator {
                 if (!inputFiles.isEmpty()) {
                     var mergeTask = MergeTask.create(processingId, partitionId, inputFiles, mergeFilesDirectory);
                     var mergeTaskExecutor = new MergeTaskExecutor(mergeTask);
-                    futures.add(executor.submit(mergeTaskExecutor::execute));
+                    var reduceTask = ReduceTask.create(processingId,
+                            mergeFilesDirectory.resolve(String.valueOf(partitionId)),
+                            outputDirectory, reducer);
+                    var reduceTaskExecutor = new ReduceTaskExecutor(reduceTask);
+
+                    futures.add(executor.submit(() -> {
+                        var mergeResult = mergeTaskExecutor.execute();
+                        if (!mergeResult.isSuccess()) {
+                            return MergeReduceResult.failure(mergeResult.error());
+                        }
+                        var reduceResult = reduceTaskExecutor.execute();
+                        if (!reduceResult.isSuccess()) {
+                            return MergeReduceResult.failure(reduceResult.error());
+                        }
+                        return MergeReduceResult.success();
+                    }));
                 }
             } catch (Exception e) {
                 LOGGER.severe("(%d) [%s] Error listing files in partition directory %d: %s".formatted(
@@ -92,7 +112,7 @@ public class ReducePhaseCoordinator {
                     processedPartitions++;
                 }
             } catch (Exception e) {
-                LOGGER.severe("(%d) [%s] Error executing merge task: %s".formatted(
+                LOGGER.severe("(%d) [%s] Error executing reduce task: %s".formatted(
                         processingId, ReducePhaseCoordinator.class.getSimpleName(), e.getMessage()));
                 failedPartitions.add(partitionsToProcess.get(i));
             }
