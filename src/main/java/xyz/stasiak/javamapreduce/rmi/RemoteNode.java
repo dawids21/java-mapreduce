@@ -14,7 +14,7 @@ public interface RemoteNode extends Remote {
 
     void startMapPhase(int processingId, Map<String, List<String>> fileAssignments) throws RemoteException;
 
-    void finishMapPhase(int processingId, String node) throws RemoteException;
+    void finishMapPhase(int processingId, String node, int processedFiles) throws RemoteException;
 
     void startReducePhase(int processingId, Map<String, List<Integer>> partitionAssignments) throws RemoteException;
 

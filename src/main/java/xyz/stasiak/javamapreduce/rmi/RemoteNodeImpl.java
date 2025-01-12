@@ -15,6 +15,7 @@ import java.util.logging.Logger;
 import xyz.stasiak.javamapreduce.Application;
 import xyz.stasiak.javamapreduce.files.FileManager;
 import xyz.stasiak.javamapreduce.map.MapPhaseCoordinator;
+import xyz.stasiak.javamapreduce.reduce.ReducePhaseCoordinator;
 
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
@@ -32,7 +33,6 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     public void startProcessing(int processingId, ProcessingParameters parameters) throws RemoteException {
         var activeNodes = workDistributor.getActiveNodes(processingId);
-        var processingState = ProcessingState.create(processingId, activeNodes);
 
         var totalPartitions = workDistributor.calculateTotalPartitions(processingId, activeNodes);
         Function<String, Integer> partitionFunction = workDistributor.createPartitionFunction(totalPartitions);
@@ -44,19 +44,23 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             throw new RuntimeException("Failed to create partition directories", e);
         }
         var fileAssignments = workDistributor.distributeFiles(processingId, activeNodes, parameters.inputDirectory());
+        var totalFiles = fileAssignments.values().stream()
+                .mapToInt(List::size)
+                .sum();
+        var processingState = ProcessingState.create(processingId, activeNodes, totalFiles, totalPartitions);
         processingState.updateFileAssignments(fileAssignments);
         processingStates.put(processingId, processingState);
 
-        var nodeAddress = Application.getProperty("node.address");
+        var masterNode = Application.getProperty("node.address");
         activeNodes.forEach(node -> CompletableFuture.runAsync(() -> {
             try {
-                if (node.equals(nodeAddress)) {
-                    startNodeProcessing(processingId, parameters, partitionFunction, nodeAddress);
+                if (node.equals(masterNode)) {
+                    startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
                     processingStates.get(processingId).updateStatus(ProcessingStatus.MAPPING);
                     startMapPhase(processingId, fileAssignments);
                 } else {
                     var remoteNode = RmiUtil.getRemoteNode(node);
-                    remoteNode.startNodeProcessing(processingId, parameters, partitionFunction, nodeAddress);
+                    remoteNode.startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
                     remoteNode.startMapPhase(processingId, fileAssignments);
                 }
             } catch (Exception e) {
@@ -95,12 +99,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         try {
             var coordinator = new MapPhaseCoordinator(processingId, processingInfo.parameters().mapperClassName(),
                     Path.of(processingInfo.parameters().inputDirectory()), files, processingInfo.partitionFunction());
-            coordinator.execute();
+            var result = coordinator.execute();
             var nodeAddress = Application.getProperty("node.address");
             var masterNode = processingInfo.masterNode();
             var remoteNode = RmiUtil.getRemoteNode(masterNode);
-            remoteNode.finishMapPhase(processingId, nodeAddress);
-            // TODO call finishMapPhase on master
+            remoteNode.finishMapPhase(processingId, nodeAddress, result.processedFiles());
         } catch (Exception e) {
             LOGGER.severe("(%d) [%s] Map phase failed: %s".formatted(processingId,
                     this.getClass().getSimpleName(), e.getMessage()));
@@ -109,27 +112,78 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void finishMapPhase(int processingId, String node) throws RemoteException {
+    public void finishMapPhase(int processingId, String node, int processedFiles) throws RemoteException {
         var state = processingStates.get(processingId);
         if (state == null) {
             throw new IllegalStateException("Processing %d not found".formatted(processingId));
         }
 
-        state.mapCompletedNodes().add(node);
-        // TODO start reduce phase
+        state.processedFiles().addAndGet(processedFiles);
+
+        if (state.isMapPhaseCompleted()) {
+            LOGGER.info("(%d) [%s] Map phase completed on all nodes".formatted(
+                    processingId, this.getClass().getSimpleName()));
+            state.updateStatus(ProcessingStatus.REDUCING);
+
+            var activeNodes = state.activeNodes();
+            var partitionAssignments = workDistributor.distributePartitions(
+                    processingId, activeNodes, state.totalPartitions());
+            state.updatePartitionAssignments(partitionAssignments);
+
+            activeNodes.forEach(activeNode -> CompletableFuture.runAsync(() -> {
+                try {
+                    if (activeNode.equals(Application.getProperty("node.address"))) {
+                        startReducePhase(processingId, partitionAssignments);
+                    } else {
+                        var remoteNode = RmiUtil.getRemoteNode(activeNode);
+                        remoteNode.startReducePhase(processingId, partitionAssignments);
+                    }
+                } catch (Exception e) {
+                    LOGGER.severe("(%d) [%s] Failed to start reduce phase on %s: %s".formatted(
+                            processingId, this.getClass().getSimpleName(), activeNode, e.getMessage()));
+                    throw new CompletionException(e);
+                    // TODO handle failure
+                }
+            }));
+        }
     }
 
     @Override
     public void startReducePhase(int processingId, Map<String, List<Integer>> partitionAssignments)
             throws RemoteException {
-        // TODO set status in Application
+        LOGGER.info("(%d) [%s] Starting reduce phase".formatted(processingId, this.getClass().getSimpleName()));
         var state = processingStates.get(processingId);
         if (state == null) {
             throw new IllegalStateException("Processing %d not found".formatted(processingId));
         }
 
-        state.updatePartitionAssignments(partitionAssignments);
-        // TODO start reduce phase
+        var processingInfo = processingInfos.get(processingId);
+        if (processingInfo == null) {
+            throw new IllegalStateException("Processing info %d not found".formatted(processingId));
+        }
+
+        var nodeAddress = Application.getProperty("node.address");
+        var nodePartitions = partitionAssignments.get(nodeAddress);
+        if (nodePartitions == null || nodePartitions.isEmpty()) {
+            LOGGER.info("(%d) [%s] No partitions assigned to this node".formatted(
+                    processingId, this.getClass().getSimpleName()));
+            return;
+        }
+
+        try {
+            var coordinator = new ReducePhaseCoordinator(
+                    processingId,
+                    processingInfo.parameters().reducerClassName(),
+                    nodePartitions);
+            coordinator.execute();
+            var masterNode = processingInfo.masterNode();
+            var remoteNode = RmiUtil.getRemoteNode(masterNode);
+            remoteNode.finishReducePhase(processingId, nodeAddress, masterNode);
+        } catch (Exception e) {
+            LOGGER.severe("(%d) [%s] Reduce phase failed: %s".formatted(
+                    processingId, this.getClass().getSimpleName(), e.getMessage()));
+            throw new RemoteException("Reduce phase failed", e);
+        }
     }
 
     @Override
@@ -140,7 +194,6 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             throw new IllegalStateException("Processing %d not found".formatted(processingId));
         }
 
-        state.reduceCompletedNodes().add(node);
         // TODO finish processing
     }
 
@@ -152,8 +205,6 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         }
 
         state.activeNodes().remove(failedNode);
-        state.mapCompletedNodes().remove(failedNode);
-        state.reduceCompletedNodes().remove(failedNode);
         state.nodeAssignments().remove(failedNode);
         // TODO redistribute
     }

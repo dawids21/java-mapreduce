@@ -3,8 +3,6 @@ package xyz.stasiak.javamapreduce.rmi;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -13,11 +11,12 @@ record ProcessingState(
         List<String> activeNodes,
         ProcessingStatus status,
         Map<String, NodeAssignment> nodeAssignments,
-        Set<String> mapCompletedNodes,
-        Set<String> reduceCompletedNodes,
-        AtomicInteger processedFiles) {
+        int totalFiles,
+        int totalPartitions,
+        AtomicInteger processedFiles,
+        AtomicInteger processedPartitions) {
 
-    static ProcessingState create(int processingId, List<String> activeNodes) {
+    static ProcessingState create(int processingId, List<String> activeNodes, int totalFiles, int totalPartitions) {
         var nodeAssignments = activeNodes.stream()
                 .collect(Collectors.toMap(
                         node -> node,
@@ -28,18 +27,10 @@ record ProcessingState(
                 new ArrayList<>(activeNodes),
                 ProcessingStatus.NOT_STARTED,
                 nodeAssignments,
-                ConcurrentHashMap.newKeySet(),
-                ConcurrentHashMap.newKeySet(),
+                totalFiles,
+                totalPartitions,
+                new AtomicInteger(0),
                 new AtomicInteger(0));
-    }
-
-    void incrementProcessedFiles() {
-        processedFiles.incrementAndGet();
-    }
-
-    boolean allFilesProcessed() {
-        var totalFiles = nodeAssignments.values().stream().mapToInt(nodeAssignment -> nodeAssignment.files().size()).sum();
-        return processedFiles.get() == totalFiles;
     }
 
     ProcessingState updateStatus(ProcessingStatus status) {
@@ -48,17 +39,26 @@ record ProcessingState(
                 activeNodes,
                 status,
                 nodeAssignments,
-                mapCompletedNodes,
-                reduceCompletedNodes,
-                processedFiles);
+                totalFiles,
+                totalPartitions,
+                processedFiles,
+                processedPartitions);
+    }
+
+    void addProcessedFiles(int count) {
+        processedFiles.addAndGet(count);
+    }
+
+    void addProcessedPartitions(int count) {
+        processedPartitions.addAndGet(count);
     }
 
     boolean isMapPhaseCompleted() {
-        return mapCompletedNodes.size() == activeNodes.size();
+        return processedFiles.get() == totalFiles;
     }
 
     boolean isReducePhaseCompleted() {
-        return reduceCompletedNodes.size() == activeNodes.size();
+        return processedPartitions.get() == totalPartitions;
     }
 
     void updateFileAssignments(Map<String, List<String>> fileAssignments) {
