@@ -1,23 +1,23 @@
 package xyz.stasiak.javamapreduce.map;
 
-import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.files.FileManager;
+record KeyValuePair(String key, String value) implements Comparable<KeyValuePair> {
+    @Override
+    public int compareTo(KeyValuePair other) {
+        return this.key.compareTo(other.key);
+    }
+}
 
 class PartitionTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(PartitionTaskExecutor.class.getName());
     private final PartitionTask task;
-
-    private record PartitionWriter(Path partitionDir, BufferedWriter writer) {
-    }
 
     PartitionTaskExecutor(PartitionTask task) {
         this.task = task;
@@ -46,8 +46,8 @@ class PartitionTaskExecutor {
     }
 
     private List<Path> processFile(Path inputFile) throws IOException {
-        var partitionWriters = new HashMap<Integer, PartitionWriter>();
         var outputFiles = new ArrayList<Path>();
+        var partitions = new HashMap<Integer, List<KeyValuePair>>();
 
         try (var reader = Files.newBufferedReader(inputFile)) {
             String line;
@@ -59,38 +59,25 @@ class PartitionTaskExecutor {
                 var value = parts[1];
                 var partition = task.partitionFunction().apply(key);
 
-                var writer = getOrCreateWriter(partition, partitionWriters);
-                writer.writer().write(key);
-                writer.writer().write('\t');
-                writer.writer().write(value);
-                writer.writer().newLine();
-            }
-        } finally {
-            for (var entry : partitionWriters.entrySet()) {
-                try {
-                    entry.getValue().writer().close();
-                    outputFiles.add(entry.getValue().partitionDir());
-                } catch (IOException e) {
-                    LOGGER.warning("(%d) [%s] Error closing writer for partition %d: %s"
-                            .formatted(task.processingId(), this.getClass().getSimpleName(),
-                                    entry.getKey(), e.getMessage()));
-                }
+                partitions.computeIfAbsent(partition, _ -> new ArrayList<>())
+                        .add(new KeyValuePair(key, value));
             }
         }
 
-        return outputFiles;
-    }
+        for (var entry : partitions.entrySet()) {
+            var partition = entry.getKey();
+            var pairs = entry.getValue();
+            pairs.sort(KeyValuePair::compareTo);
 
-    private PartitionWriter getOrCreateWriter(int partition, Map<Integer, PartitionWriter> writers) throws IOException {
-        return writers.computeIfAbsent(partition, p -> {
-            try {
-                var partitionDir = FileManager.getPartitionDirectory(task.processingId(), partition)
-                        .resolve(task.inputFile().getFileName());
-                var writer = Files.newBufferedWriter(partitionDir);
-                return new PartitionWriter(partitionDir, writer);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to create writer for partition " + p, e);
+            var outputFile = task.outputDirectory().resolve("%d".formatted(partition));
+            try (var writer = Files.newBufferedWriter(outputFile)) {
+                for (var pair : pairs) {
+                    writer.write("%s\t%s%n".formatted(pair.key(), pair.value()));
+                }
             }
-        });
+            outputFiles.add(outputFile);
+        }
+
+        return outputFiles;
     }
 }
