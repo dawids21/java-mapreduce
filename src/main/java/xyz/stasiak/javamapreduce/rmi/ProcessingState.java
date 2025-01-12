@@ -1,36 +1,33 @@
 package xyz.stasiak.javamapreduce.rmi;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 
 record ProcessingState(
         int processingId,
         List<String> activeNodes,
         ProcessingStatus status,
-        Map<String, NodeAssignment> nodeAssignments,
+        Map<String, List<String>> fileAssignments,
+        Map<String, List<Integer>> partitionAssignments,
         int totalFiles,
         int totalPartitions,
-        AtomicInteger processedFiles,
-        AtomicInteger processedPartitions) {
+        int processedFiles,
+        int processedPartitions) {
 
     static ProcessingState create(int processingId, List<String> activeNodes, int totalFiles, int totalPartitions) {
-        var nodeAssignments = activeNodes.stream()
-                .collect(Collectors.toMap(
-                        node -> node,
-                        _ -> new NodeAssignment(new ArrayList<>(), new ArrayList<>())));
 
         return new ProcessingState(
                 processingId,
                 new ArrayList<>(activeNodes),
                 ProcessingStatus.NOT_STARTED,
-                nodeAssignments,
+                new HashMap<>(),
+                new HashMap<>(),
                 totalFiles,
                 totalPartitions,
-                new AtomicInteger(0),
-                new AtomicInteger(0));
+                0,
+                0);
     }
 
     ProcessingState updateStatus(ProcessingStatus status) {
@@ -38,44 +35,85 @@ record ProcessingState(
                 processingId,
                 activeNodes,
                 status,
-                nodeAssignments,
+                fileAssignments,
+                partitionAssignments,
                 totalFiles,
                 totalPartitions,
                 processedFiles,
                 processedPartitions);
     }
 
-    void addProcessedFiles(int count) {
-        processedFiles.addAndGet(count);
+    ProcessingState addProcessedFiles(int count) {
+        return new ProcessingState(
+                processingId,
+                activeNodes,
+                status,
+                fileAssignments,
+                partitionAssignments,
+                totalFiles,
+                totalPartitions,
+                processedFiles + count,
+                processedPartitions);
     }
 
-    void addProcessedPartitions(int count) {
-        processedPartitions.addAndGet(count);
+    ProcessingState addProcessedPartitions(int count) {
+        return new ProcessingState(
+                processingId,
+                activeNodes,
+                status,
+                fileAssignments,
+                partitionAssignments,
+                totalFiles,
+                totalPartitions,
+                processedFiles,
+                processedPartitions + count);
     }
 
     boolean isMapPhaseCompleted() {
-        return processedFiles.get() == totalFiles;
+        return processedFiles == totalFiles;
     }
 
     boolean isReducePhaseCompleted() {
-        return processedPartitions.get() == totalPartitions;
+        return processedPartitions == totalPartitions;
     }
 
-    void updateFileAssignments(Map<String, List<String>> fileAssignments) {
+    ProcessingState updateFileAssignments(Map<String, List<String>> fileAssignments) {
+        var newFileAssignments = new HashMap<>(this.fileAssignments);
         fileAssignments.forEach((node, files) -> {
-            var assignment = nodeAssignments.get(node);
+            var assignment = newFileAssignments.get(node);
             if (assignment != null) {
-                assignment.files().addAll(files);
+                assignment.addAll(files);
             }
         });
+        return new ProcessingState(
+                processingId,
+                activeNodes,
+                status,
+                newFileAssignments,
+                partitionAssignments,
+                totalFiles,
+                totalPartitions,
+                processedFiles,
+                processedPartitions);
     }
 
-    void updatePartitionAssignments(Map<String, List<Integer>> partitionAssignments) {
+        ProcessingState updatePartitionAssignments(Map<String, List<Integer>> partitionAssignments) {
+        var newPartitionAssignments = new HashMap<>(this.partitionAssignments);
         partitionAssignments.forEach((node, partitions) -> {
-            var assignment = nodeAssignments.get(node);
+            var assignment = newPartitionAssignments.get(node);
             if (assignment != null) {
-                assignment.partitions().addAll(partitions);
+                assignment.addAll(partitions);
             }
         });
+        return new ProcessingState(
+                processingId,
+                activeNodes,
+                status,
+                fileAssignments,
+                newPartitionAssignments,
+                totalFiles,
+                totalPartitions,
+                processedFiles,
+                processedPartitions);
     }
 }
