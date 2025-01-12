@@ -16,6 +16,7 @@ import java.util.function.Function;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
+import xyz.stasiak.javamapreduce.files.FileManager;
 
 class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
@@ -91,18 +92,17 @@ class WorkDistributor {
         return result;
     }
 
-    Map<String, List<Integer>> distributePartitions(int processingId, List<String> activeNodes, int totalPartitions)
-            throws RemoteException {
+    Map<String, List<Integer>> distributePartitions(int processingId, List<String> activeNodes)
+            throws RemoteException, IOException {
         var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
         var totalPower = nodesWithPower.values().stream()
                 .mapToInt(NodeInfo::processingPower)
                 .sum();
 
         var result = new HashMap<String, List<Integer>>();
-        var remainingPartitions = new ArrayList<Integer>();
-        for (int i = 0; i < totalPartitions; i++) {
-            remainingPartitions.add(i);
-        }
+        var partitionsToDistribute = FileManager.getPartitions(processingId);
+        var remainingPartitions = new ArrayList<Integer>(partitionsToDistribute);
+        var totalPartitions = partitionsToDistribute.size();
 
         for (var entry : nodesWithPower.entrySet()) {
             var nodeAddress = entry.getKey();

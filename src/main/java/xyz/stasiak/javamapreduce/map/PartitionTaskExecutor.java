@@ -69,7 +69,7 @@ class PartitionTaskExecutor {
             var pairs = entry.getValue();
             pairs.sort(KeyValuePair::compareTo);
 
-            var outputFile = task.outputDirectory().resolve("%d".formatted(partition));
+            var outputFile = task.outputDirectory().resolve("%d/%s".formatted(partition, inputFile.getFileName()));
             try (var writer = Files.newBufferedWriter(outputFile)) {
                 for (var pair : pairs) {
                     writer.write("%s\t%s%n".formatted(pair.key(), pair.value()));

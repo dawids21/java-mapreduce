@@ -80,7 +80,8 @@ class MergeTaskExecutor {
     }
 
     private void mergeFileHandles(List<FileHandle> fileHandles, BufferedWriter writer) throws IOException {
-        while (!fileHandles.isEmpty()) {
+        int finishedFiles = 0;
+        while (finishedFiles < fileHandles.size()) {
             var minHandle = findMinimumLine(fileHandles);
             writer.write(minHandle.currentLine);
             writer.newLine();
@@ -91,6 +92,7 @@ class MergeTaskExecutor {
             if (nextLine != null) {
                 fileHandles.set(handleIndex, minHandle.updateLine(nextLine));
             } else {
+                finishedFiles++;
                 fileHandles.set(handleIndex, minHandle.finish());
             }
         }
@@ -101,7 +103,7 @@ class MergeTaskExecutor {
         var minLine = minHandle.currentLine;
 
         for (var handle : fileHandles) {
-            if (!handle.isFinished() && handle.currentLine.compareTo(minLine) < 0) {
+            if (minHandle.isFinished || (!handle.isFinished() && handle.currentLine.compareTo(minLine) < 0)) {
                 minHandle = handle;
                 minLine = handle.currentLine;
             }

@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
@@ -40,6 +41,13 @@ public class FileManager {
 
     public static Path getPartitionDirectory(int processingId, int partitionId) {
         return getPartitionFilesDirectory(processingId).resolve(String.valueOf(partitionId));
+    }
+
+    public static List<Integer> getPartitions(int processingId) throws IOException {
+        try (var paths = Files.list(getPartitionFilesDirectory(processingId))) {
+            return paths.map(path -> Integer.parseInt(path.getFileName().toString()))
+                    .toList();
+        }
     }
 
     public static Path getMergeFilesDirectory(int processingId) {

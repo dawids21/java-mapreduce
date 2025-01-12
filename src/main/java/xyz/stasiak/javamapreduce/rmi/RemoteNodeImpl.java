@@ -124,11 +124,25 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             LOGGER.info("(%d) [%s] Map phase completed on all nodes".formatted(
                     processingId, this.getClass().getSimpleName()));
             state.updateStatus(ProcessingStatus.REDUCING);
+            try {
+                FileManager.removeEmptyPartitionDirectories(processingId);
+            } catch (IOException e) {
+                LOGGER.severe("(%d) [%s] Failed to remove empty partition directories: %s".formatted(
+                        processingId, this.getClass().getSimpleName(), e.getMessage()));
+                throw new RuntimeException("Failed to remove empty partition directories", e);
+            }
 
             var activeNodes = state.activeNodes();
-            var partitionAssignments = workDistributor.distributePartitions(
-                    processingId, activeNodes, state.totalPartitions());
-            state.updatePartitionAssignments(partitionAssignments);
+            Map<String, List<Integer>> partitionAssignments;
+            try {
+                partitionAssignments = workDistributor.distributePartitions(
+                        processingId, activeNodes);
+                state.updatePartitionAssignments(partitionAssignments);
+            } catch (IOException e) {
+                LOGGER.severe("(%d) [%s] Failed to distribute partitions: %s".formatted(
+                        processingId, this.getClass().getSimpleName(), e.getMessage()));
+                throw new RuntimeException("Failed to distribute partitions", e);
+            }
 
             activeNodes.forEach(activeNode -> CompletableFuture.runAsync(() -> {
                 try {
