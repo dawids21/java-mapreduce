@@ -18,12 +18,17 @@ record ProcessingState(
 
     static ProcessingState create(int processingId, List<String> activeNodes, int totalFiles, int totalPartitions) {
 
+        var fileAssignments = new HashMap<String, List<String>>();
+        activeNodes.forEach(node -> fileAssignments.put(node, new ArrayList<>()));
+        var partitionAssignments = new HashMap<String, List<Integer>>();
+        activeNodes.forEach(node -> partitionAssignments.put(node, new ArrayList<>()));
+
         return new ProcessingState(
                 processingId,
                 new ArrayList<>(activeNodes),
                 ProcessingStatus.NOT_STARTED,
-                new HashMap<>(),
-                new HashMap<>(),
+                fileAssignments,
+                partitionAssignments,
                 totalFiles,
                 totalPartitions,
                 0,
@@ -79,32 +84,39 @@ record ProcessingState(
 
     ProcessingState updateFileAssignments(Map<String, List<String>> fileAssignments) {
         var newFileAssignments = new HashMap<>(this.fileAssignments);
+        this.fileAssignments.forEach((node, files) -> {
+            newFileAssignments.put(node, new ArrayList<>(files));
+        });
         fileAssignments.forEach((node, files) -> {
             var assignment = newFileAssignments.get(node);
             if (assignment != null) {
                 assignment.addAll(files);
             }
         });
+        var newTotalFiles = newFileAssignments.values().stream().mapToInt(List::size).sum();
         return new ProcessingState(
                 processingId,
                 activeNodes,
                 status,
                 newFileAssignments,
                 partitionAssignments,
-                totalFiles,
+                newTotalFiles,
                 totalPartitions,
                 processedFiles,
                 processedPartitions);
     }
 
-        ProcessingState updatePartitionAssignments(Map<String, List<Integer>> partitionAssignments) {
+    ProcessingState updatePartitionAssignments(Map<String, List<Integer>> partitionAssignments) {
         var newPartitionAssignments = new HashMap<>(this.partitionAssignments);
+        this.partitionAssignments
+                .forEach((node, partitions) -> newPartitionAssignments.put(node, new ArrayList<>(partitions)));
         partitionAssignments.forEach((node, partitions) -> {
             var assignment = newPartitionAssignments.get(node);
             if (assignment != null) {
                 assignment.addAll(partitions);
             }
         });
+        var newTotalPartitions = newPartitionAssignments.values().stream().mapToInt(List::size).sum();
         return new ProcessingState(
                 processingId,
                 activeNodes,
@@ -112,7 +124,7 @@ record ProcessingState(
                 fileAssignments,
                 newPartitionAssignments,
                 totalFiles,
-                totalPartitions,
+                newTotalPartitions,
                 processedFiles,
                 processedPartitions);
     }

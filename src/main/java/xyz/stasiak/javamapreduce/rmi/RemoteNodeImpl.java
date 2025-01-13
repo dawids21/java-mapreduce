@@ -47,9 +47,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         var totalFiles = fileAssignments.values().stream()
                 .mapToInt(List::size)
                 .sum();
-        var processingState = ProcessingState.create(processingId, activeNodes, totalFiles, totalPartitions);
-        // TODO compute?
-        processingState.updateFileAssignments(fileAssignments);
+        var processingState = ProcessingState
+                .create(processingId, activeNodes, totalFiles, totalPartitions)
+                .updateFileAssignments(fileAssignments);
         processingStates.put(processingId, processingState);
 
         var masterNode = Application.getProperty("node.address");
@@ -133,13 +133,12 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 try {
                     var partitionAssignments = workDistributor.distributePartitions(
                             processingId, activeNodes);
-                    processingState.updatePartitionAssignments(partitionAssignments);
+                    return processingState.updatePartitionAssignments(partitionAssignments);
                 } catch (IOException e) {
                     LOGGER.severe("(%d) [%s] Failed to distribute partitions: %s".formatted(
                             processingId, this.getClass().getSimpleName(), e.getMessage()));
                     throw new RuntimeException("Failed to distribute partitions", e);
                 }
-                return processingState;
             });
 
             updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
@@ -214,6 +213,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
                 try {
                     if (activeNode.equals(Application.getProperty("node.address"))) {
+                        processingStates.compute(processingId,
+                                (_, processingState) -> processingState.updateStatus(ProcessingStatus.FINISHED));
                         finishProcessing(processingId);
                     } else {
                         var remoteNode = RmiUtil.getRemoteNode(activeNode);
