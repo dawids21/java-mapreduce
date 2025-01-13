@@ -13,9 +13,9 @@ import java.util.function.Function;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
-import xyz.stasiak.javamapreduce.files.FileManager;
 import xyz.stasiak.javamapreduce.map.MapPhaseCoordinator;
 import xyz.stasiak.javamapreduce.reduce.ReducePhaseCoordinator;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
@@ -37,7 +37,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         var totalPartitions = workDistributor.calculateTotalPartitions(processingId, activeNodes);
         Function<String, Integer> partitionFunction = workDistributor.createPartitionFunction(totalPartitions);
         try {
-            FileManager.createPartitionDirectories(processingId, totalPartitions);
+            FilesUtil.createPartitionDirectories(processingId, totalPartitions);
         } catch (IOException e) {
             LOGGER.severe("(%d) [%s] Failed to create partition directories: %s".formatted(processingId,
                     this.getClass().getSimpleName(), e.getMessage()));
@@ -81,7 +81,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         LOGGER.info("(%d) [%s] Starting node processing".formatted(processingId,
                 this.getClass().getSimpleName()));
         try {
-            FileManager.createNodeDirectories(processingId);
+            FilesUtil.createNodeDirectories(processingId);
         } catch (IOException e) {
             LOGGER.severe("(%d) [%s] Failed to create directories: %s".formatted(processingId,
                     this.getClass().getSimpleName(), e.getMessage()));
@@ -121,7 +121,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             LOGGER.info("(%d) [%s] Map phase completed on all nodes".formatted(
                     processingId, this.getClass().getSimpleName()));
             try {
-                FileManager.removeEmptyPartitionDirectories(processingId);
+                FilesUtil.removeEmptyPartitionDirectories(processingId);
             } catch (IOException e) {
                 LOGGER.severe("(%d) [%s] Failed to remove empty partition directories: %s".formatted(
                         processingId, this.getClass().getSimpleName(), e.getMessage()));
@@ -241,7 +241,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         var nodeAddress = Application.getProperty("node.address");
         if (nodeAddress.equals(processingInfo.masterNode())) {
             try {
-                FileManager.removePublicDirectories(processingId);
+                FilesUtil.removePublicDirectories(processingId);
             } catch (IOException e) {
                 LOGGER.severe("(%d) [%s] Failed to remove public directories: %s".formatted(
                         processingId, this.getClass().getSimpleName(), e.getMessage()));
@@ -249,7 +249,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             }
         }
         try {
-            FileManager.removeNodeDirectories(processingId);
+            FilesUtil.removeNodeDirectories(processingId);
         } catch (IOException e) {
             LOGGER.severe("(%d) [%s] Failed to remove node directories: %s".formatted(
                     processingId, this.getClass().getSimpleName(), e.getMessage()));

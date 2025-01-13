@@ -16,7 +16,7 @@ import java.util.function.Function;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
-import xyz.stasiak.javamapreduce.files.FileManager;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 
 class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
@@ -100,7 +100,7 @@ class WorkDistributor {
                 .sum();
 
         var result = new HashMap<String, List<Integer>>();
-        var partitionsToDistribute = FileManager.getPartitions(processingId);
+        var partitionsToDistribute = FilesUtil.getPartitions(processingId);
         var remainingPartitions = new ArrayList<Integer>(partitionsToDistribute);
         var totalPartitions = partitionsToDistribute.size();
 

@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.files;
+package xyz.stasiak.javamapreduce.util;
 
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
@@ -11,13 +11,10 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
 
-public class FileManager {
-    private static final Logger LOGGER = Logger.getLogger(FileManager.class.getName());
+public class FilesUtil {
+    private static final Logger LOGGER = Logger.getLogger(FilesUtil.class.getName());
     private static final String PUBLIC_DIRECTORY_PROPERTY = "public.directory";
     private static final String DEFAULT_NODE_DIRECTORY = "/tmp/java-mapreduce";
-
-    private FileManager() {
-    }
 
     public static Path getBaseNodeDirectory(int processingId) {
         return Path.of(DEFAULT_NODE_DIRECTORY, String.valueOf(processingId));

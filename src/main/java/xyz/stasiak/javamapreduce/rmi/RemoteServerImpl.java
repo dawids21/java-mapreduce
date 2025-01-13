@@ -8,7 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
-import xyz.stasiak.javamapreduce.files.FileManager;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 
 public class RemoteServerImpl extends UnicastRemoteObject implements RemoteServer {
 
@@ -24,7 +24,7 @@ public class RemoteServerImpl extends UnicastRemoteObject implements RemoteServe
     public int startProcessing(ProcessingParameters parameters) throws RemoteException {
         var processingId = new Random().nextInt(1_000_000_000);
         try {
-            FileManager.createPublicDirectories(processingId, parameters.outputDirectory());
+            FilesUtil.createPublicDirectories(processingId, parameters.outputDirectory());
         } catch (IOException e) {
             throw new RemoteException("Failed to create public directories", e);
         }

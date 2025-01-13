@@ -6,7 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.files.FileManager;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 
 class MapTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(MapTaskExecutor.class.getName());
@@ -23,7 +23,7 @@ class MapTaskExecutor {
         while (currentTask.canRetry()) {
             try {
                 LOGGER.info("Processing file: %s".formatted(currentTask.inputFile()));
-                var outputFile = FileManager.getMapFilesDirectory(currentTask.processingId())
+                var outputFile = FilesUtil.getMapFilesDirectory(currentTask.processingId())
                         .resolve(currentTask.inputFile().getFileName());
                 processFile(currentTask.inputFile(), outputFile);
                 result = MapResult.success(outputFile);

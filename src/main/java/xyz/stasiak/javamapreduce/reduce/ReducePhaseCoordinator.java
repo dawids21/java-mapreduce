@@ -9,7 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.files.FileManager;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 
 public class ReducePhaseCoordinator {
     private static final Logger LOGGER = Logger.getLogger(ReducePhaseCoordinator.class.getName());
@@ -65,10 +65,10 @@ public class ReducePhaseCoordinator {
     private ProcessingResult processPartitions(List<Integer> partitionsToProcess) {
         var reducer = ReducerFactory.createReducer(reducerClassName);
         var futures = new ArrayList<Future<MergeReduceResult>>();
-        var mergeFilesDirectory = FileManager.getMergeFilesDirectory(processingId);
+        var mergeFilesDirectory = FilesUtil.getMergeFilesDirectory(processingId);
 
         for (var partitionId : partitionsToProcess) {
-            var partitionDirectory = FileManager.getPartitionDirectory(processingId, partitionId);
+            var partitionDirectory = FilesUtil.getPartitionDirectory(processingId, partitionId);
             try {
                 var inputFiles = Files.list(partitionDirectory)
                         .filter(Files::isRegularFile)

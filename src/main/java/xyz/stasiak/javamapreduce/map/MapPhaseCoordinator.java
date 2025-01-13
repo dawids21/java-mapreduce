@@ -9,7 +9,7 @@ import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.files.FileManager;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 
 public class MapPhaseCoordinator {
     private static final Logger LOGGER = Logger.getLogger(MapPhaseCoordinator.class.getName());
@@ -65,8 +65,8 @@ public class MapPhaseCoordinator {
 
     private ProcessingResult processFiles(List<Path> filesToProcess) {
         var mapper = MapperFactory.createMapper(mapperClassName);
-        var mapFilesDirectory = FileManager.getMapFilesDirectory(processingId);
-        var partitionFilesDirectory = FileManager.getPartitionFilesDirectory(processingId);
+        var mapFilesDirectory = FilesUtil.getMapFilesDirectory(processingId);
+        var partitionFilesDirectory = FilesUtil.getPartitionFilesDirectory(processingId);
         var futures = new ArrayList<Future<MapPartitionResult>>();
 
         for (var file : filesToProcess) {
