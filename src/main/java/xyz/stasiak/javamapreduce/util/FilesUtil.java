@@ -85,11 +85,15 @@ public class FilesUtil {
     }
 
     public static void removeNodeDirectories(int processingId) throws IOException {
-        deleteDirectory(getBaseNodeDirectory(processingId));
+        if (Files.exists(getBaseNodeDirectory(processingId))) {
+            deleteDirectory(getBaseNodeDirectory(processingId));
+        }
     }
 
     public static void removePublicDirectories(int processingId) throws IOException {
-        deleteDirectory(getBasePublicDirectory(processingId));
+        if (Files.exists(getBasePublicDirectory(processingId))) {
+            deleteDirectory(getBasePublicDirectory(processingId));
+        }
     }
 
     private static void deleteDirectory(Path directory) throws IOException {
