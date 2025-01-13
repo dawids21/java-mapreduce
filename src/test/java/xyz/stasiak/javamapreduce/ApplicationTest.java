@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.rmi.NotBoundException;
+import java.rmi.registry.LocateRegistry;
+import java.rmi.registry.Registry;
 import java.util.List;
 import java.util.logging.LogManager;
 
@@ -16,6 +19,7 @@ import org.junit.jupiter.api.io.TempDir;
 import xyz.stasiak.javamapreduce.cli.Command;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
 import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
+import xyz.stasiak.javamapreduce.rmi.RemoteServer;
 
 class ApplicationTest {
 
@@ -27,7 +31,7 @@ class ApplicationTest {
 
     private Path inputDir;
     private Path outputDir;
-    private Application application;
+    private RemoteServer remoteServer;
 
     @BeforeAll
     static void setUpLogging() throws IOException {
@@ -36,14 +40,17 @@ class ApplicationTest {
     }
 
     @BeforeEach
-    void setUp() throws IOException {
+    void setUp() throws IOException, NotBoundException {
         inputDir = tempDir.resolve("input");
         outputDir = tempDir.resolve("output");
 
         Files.createDirectory(inputDir);
         Files.createDirectory(outputDir);
 
-        application = new Application();
+        new Application();
+        var port = Integer.parseInt(Application.getRmiPort());
+        Registry rmiRegistry = LocateRegistry.getRegistry(port);
+        remoteServer = (RemoteServer) rmiRegistry.lookup("server");
     }
 
     private void createTestFiles(List<TestFile> files) throws IOException {
@@ -54,7 +61,7 @@ class ApplicationTest {
     }
 
     @Test
-    void shouldProcessWordCount() throws IOException, InterruptedException {
+    void shouldProcessWordCount() throws IOException, InterruptedException, NotBoundException {
         var testFiles = List.of(
                 new TestFile("file1.txt", "hello world\nworld hello\nhello hello"),
                 new TestFile("file2.txt", "mapreduce test\ntest mapreduce\nerlang"));
@@ -62,21 +69,22 @@ class ApplicationTest {
 
         var startCommand = createStartCommand();
 
-        var processingId = application.getRemoteServer().startProcessing(startCommand.toProcessingParameters());
+        var processingId = remoteServer.startProcessing(startCommand.toProcessingParameters());
 
         var status = waitForCompletion(processingId);
 
         assertEquals(ProcessingStatus.FINISHED, status);
     }
-    
+
     private CommandWithArguments createStartCommand() {
         return new CommandWithArguments(
                 Command.START,
-                List.of(inputDir.toString(), outputDir.toString(), TestMapper.class.getName(), TestReducer.class.getName()),
-                "start " + inputDir + " " + outputDir + " " + TestMapper.class.getName() + " " + TestReducer.class.getName());
+                List.of(inputDir.toString(), outputDir.toString(), TestMapper.class.getName(),
+                        TestReducer.class.getName()),
+                "start " + inputDir + " " + outputDir + " " + TestMapper.class.getName() + " "
+                        + TestReducer.class.getName());
     }
 
-    
     private ProcessingStatus waitForCompletion(int processingId) throws InterruptedException, IOException {
         var status = ProcessingStatus.NOT_STARTED;
         var attempts = 0;
@@ -84,7 +92,7 @@ class ApplicationTest {
 
         while (status != ProcessingStatus.FINISHED && attempts < maxAttempts) {
             Thread.sleep(1000);
-            status = application.getRemoteServer().getProcessingStatus(processingId);
+            status = remoteServer.getProcessingStatus(processingId);
             attempts++;
         }
 

@@ -13,7 +13,6 @@ import xyz.stasiak.javamapreduce.Application;
 
 public class FilesUtil {
     private static final Logger LOGGER = Logger.getLogger(FilesUtil.class.getName());
-    private static final String PUBLIC_DIRECTORY_PROPERTY = "public.directory";
     private static final String DEFAULT_NODE_DIRECTORY = "/tmp/java-mapreduce";
 
     public static Path getBaseNodeDirectory(int processingId) {
@@ -21,7 +20,7 @@ public class FilesUtil {
     }
 
     public static Path getBasePublicDirectory(int processingId) {
-        var publicDirectory = Application.getProperties().getProperty(PUBLIC_DIRECTORY_PROPERTY);
+        var publicDirectory = Application.getPublicDirectory();
         if (publicDirectory == null) {
             throw new IllegalStateException("Public directory property not set in application.properties");
         }
@@ -78,7 +77,8 @@ public class FilesUtil {
                         deleteDirectory(path);
                     }
                 } catch (IOException e) {
-                    LOGGER.warning("Failed to check or delete directory: " + path);
+                    LoggingUtil.logWarning(LOGGER, processingId, FilesUtil.class,
+                            "Failed to check or delete directory: " + path, e);
                 }
             });
         }

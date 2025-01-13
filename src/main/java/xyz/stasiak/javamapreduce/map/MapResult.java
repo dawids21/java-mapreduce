@@ -3,14 +3,14 @@ package xyz.stasiak.javamapreduce.map;
 import java.nio.file.Path;
 
 record MapResult(
-        String error,
+        Throwable error,
         Path outputFile) {
 
     static MapResult success(Path outputFile) {
         return new MapResult(null, outputFile);
     }
 
-    static MapResult failure(String error) {
+    static MapResult failure(Throwable error) {
         return new MapResult(error, null);
     }
 

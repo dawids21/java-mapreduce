@@ -1,11 +1,8 @@
 package xyz.stasiak.javamapreduce.rmi;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.rmi.Naming;
-import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,6 +13,7 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.Application;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
@@ -26,28 +24,27 @@ class WorkDistributor {
         }
     }
 
-    List<String> getActiveNodes(int processingId) throws RemoteException {
+    List<String> getActiveNodes(int processingId) {
         var knownNodes = Application.getKnownNodes();
-        LOGGER.info("(%d) [%s] Starting node discovery for active nodes".formatted(processingId,
-                this.getClass().getSimpleName()));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Starting node discovery for active nodes");
 
         var activeNodes = new ArrayList<String>();
         for (var nodeAddress : knownNodes) {
             try {
-                var node = (RemoteNode) Naming.lookup(nodeAddress);
+                var node = RmiUtil.getRemoteNode(nodeAddress);
                 node.isAlive();
                 activeNodes.add(nodeAddress);
-            } catch (RemoteException | NotBoundException | MalformedURLException e) {
-                LOGGER.warning("(%d) [%s] Node %s is not available: %s".formatted(processingId,
-                        this.getClass().getSimpleName(), nodeAddress, e.getMessage()));
+            } catch (RemoteNodeUnavailableException | RemoteException e) {
+                LoggingUtil.logWarning(LOGGER, processingId, getClass(),
+                        "Node %s is not available".formatted(nodeAddress), e);
             }
         }
 
         return activeNodes;
     }
 
-    Map<String, List<String>> distributeFiles(int processingId, List<String> activeNodes, String inputDirectory)
-            throws RemoteException {
+    Map<String, List<String>> distributeFiles(int processingId, List<String> activeNodes, String inputDirectory) {
         var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
         var totalPower = nodesWithPower.values().stream()
                 .mapToInt(NodeInfo::processingPower)
@@ -57,9 +54,9 @@ class WorkDistributor {
         try {
             files = Files.list(Path.of(inputDirectory)).map(path -> path.getFileName().toString()).toList();
         } catch (IOException e) {
-            LOGGER.severe("(%d) [%s] Failed to list files in directory %s: %s".formatted(
-                    processingId, this.getClass().getSimpleName(), inputDirectory, e.getMessage()));
-            throw new RuntimeException("Failed to list files in directory", e);
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Failed to list files in directory %s".formatted(inputDirectory), e);
+            throw new ProcessingException("Failed to list files in directory", e);
         }
 
         var result = new HashMap<String, List<String>>();
@@ -83,21 +80,27 @@ class WorkDistributor {
             result.put(nodeAddress, nodeFiles);
         }
 
-        LOGGER.info("(%d) [%s] File assignments: %s".formatted(
-                processingId, this.getClass().getSimpleName(), result));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "File assignments: %s".formatted(result));
 
         return result;
     }
 
-    Map<String, List<Integer>> distributePartitions(int processingId, List<String> activeNodes)
-            throws RemoteException, IOException {
+    Map<String, List<Integer>> distributePartitions(int processingId, List<String> activeNodes) {
         var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
         var totalPower = nodesWithPower.values().stream()
                 .mapToInt(NodeInfo::processingPower)
                 .sum();
 
         var result = new HashMap<String, List<Integer>>();
-        var partitionsToDistribute = FilesUtil.getPartitions(processingId);
+        List<Integer> partitionsToDistribute;
+        try {
+            partitionsToDistribute = FilesUtil.getPartitions(processingId);
+        } catch (IOException e) {
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Failed to get partitions for processing", e);
+            throw new ProcessingException("Failed to get partitions for processing", e);
+        }
         var remainingPartitions = new ArrayList<Integer>(partitionsToDistribute);
         var totalPartitions = partitionsToDistribute.size();
 
@@ -118,13 +121,13 @@ class WorkDistributor {
             result.put(nodeAddress, nodePartitions);
         }
 
-        LOGGER.info("(%d) [%s] Partition assignments: %s".formatted(
-                processingId, this.getClass().getSimpleName(), result));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Partition assignments: %s".formatted(result));
 
         return result;
     }
 
-    int calculateTotalPartitions(int processingId, List<String> activeNodes) throws RemoteException {
+    int calculateTotalPartitions(int processingId, List<String> activeNodes) {
         var activeNodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
         var totalPower = activeNodesWithPower.values().stream()
                 .mapToInt(NodeInfo::processingPower)
@@ -137,18 +140,19 @@ class WorkDistributor {
         return new PartitionFunction(partitionCount);
     }
 
-    private Map<String, NodeInfo> getActiveNodesWithPower(int processingId, List<String> activeNodes)
-            throws RemoteException {
+    private Map<String, NodeInfo> getActiveNodesWithPower(int processingId, List<String> activeNodes) {
         var activeNodesWithPower = new HashMap<String, NodeInfo>();
 
         for (var nodeAddress : activeNodes) {
             try {
-                var node = (RemoteNode) Naming.lookup(nodeAddress);
+                var node = RmiUtil.getRemoteNode(nodeAddress);
                 var nodeInfo = NodeInfo.fromRemoteNode(nodeAddress, node);
                 activeNodesWithPower.put(nodeAddress, nodeInfo);
-            } catch (RemoteException | NotBoundException | MalformedURLException e) {
-                LOGGER.warning("(%d) [%s] Node %s is not available: %s".formatted(processingId,
-                        this.getClass().getSimpleName(), nodeAddress, e.getMessage()));
+            } catch (RemoteException | RemoteNodeUnavailableException e) {
+                LoggingUtil.logWarning(LOGGER, processingId, getClass(),
+                        "Node %s is not available".formatted(nodeAddress), e);
+                var nodeInfo = new NodeInfo(nodeAddress, 0);
+                activeNodesWithPower.put(nodeAddress, nodeInfo);
             }
         }
 

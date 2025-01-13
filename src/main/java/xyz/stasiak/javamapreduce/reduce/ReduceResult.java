@@ -3,14 +3,14 @@ package xyz.stasiak.javamapreduce.reduce;
 import java.nio.file.Path;
 
 record ReduceResult(
-        String error,
+        Throwable error,
         Path outputFile) {
 
     static ReduceResult success(Path outputFile) {
         return new ReduceResult(null, outputFile);
     }
 
-    static ReduceResult failure(String error) {
+    static ReduceResult failure(Throwable error) {
         return new ReduceResult(error, null);
     }
 

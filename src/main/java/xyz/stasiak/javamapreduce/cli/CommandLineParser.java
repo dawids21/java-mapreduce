@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
+
 public class CommandLineParser {
 
     private static final Logger LOGGER = Logger.getLogger(CommandLineParser.class.getName());
@@ -24,7 +26,8 @@ public class CommandLineParser {
 
         var arguments = parts.subList(1, parts.size());
         if (!validateArguments(command, arguments)) {
-            LOGGER.warning("Invalid number of arguments for command: " + command);
+            LoggingUtil.logWarning(LOGGER, CommandLineParser.class,
+                    "Invalid number of arguments for command: " + command);
             return null;
         }
 
@@ -66,7 +69,7 @@ public class CommandLineParser {
         }
 
         if (inQuotes) {
-            LOGGER.warning("Unclosed quotes in command");
+            LoggingUtil.logWarning(LOGGER, CommandLineParser.class, "Unclosed quotes in command");
             return List.of();
         }
 

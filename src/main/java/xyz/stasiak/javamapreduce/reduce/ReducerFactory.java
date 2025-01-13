@@ -1,10 +1,6 @@
 package xyz.stasiak.javamapreduce.reduce;
 
-import java.util.logging.Logger;
-
 public class ReducerFactory {
-
-    private static final Logger LOGGER = Logger.getLogger(ReducerFactory.class.getName());
 
     public static Reducer createReducer(String reducerClassName) {
         try {
@@ -15,7 +11,6 @@ public class ReducerFactory {
             }
             return (Reducer) reducerClass.getDeclaredConstructor().newInstance();
         } catch (ReflectiveOperationException e) {
-            LOGGER.severe("Failed to create reducer: " + e.getMessage());
             throw new RuntimeException("Failed to create reducer", e);
         }
     }

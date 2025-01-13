@@ -7,13 +7,12 @@ import java.rmi.RemoteException;
 
 class RmiUtil {
 
-    static RemoteNode getRemoteNode(String nodeAddress) throws RemoteException {
+    static RemoteNode getRemoteNode(String nodeAddress) throws RemoteNodeUnavailableException {
         try {
-            var node = (RemoteNode) Naming.lookup(nodeAddress);
-            node.isAlive();
-            return node;
+            return (RemoteNode) Naming.lookup(nodeAddress);
         } catch (RemoteException | NotBoundException | MalformedURLException e) {
-            throw new RemoteException("Node %s is not available: %s".formatted(nodeAddress, e.getMessage()));
+            throw new RemoteNodeUnavailableException(
+                    "Node %s is not available: %s".formatted(nodeAddress, e.getMessage()));
         }
     }
 }

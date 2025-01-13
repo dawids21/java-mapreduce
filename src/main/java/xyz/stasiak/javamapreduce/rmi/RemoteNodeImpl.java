@@ -1,9 +1,11 @@
 package xyz.stasiak.javamapreduce.rmi;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -16,6 +18,7 @@ import xyz.stasiak.javamapreduce.Application;
 import xyz.stasiak.javamapreduce.map.MapPhaseCoordinator;
 import xyz.stasiak.javamapreduce.reduce.ReducePhaseCoordinator;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
@@ -31,17 +34,18 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         this.processingInfos = new ConcurrentHashMap<>();
     }
 
-    public void startProcessing(int processingId, ProcessingParameters parameters) throws RemoteException {
+    public void startProcessing(int processingId, ProcessingParameters parameters) {
         var activeNodes = workDistributor.getActiveNodes(processingId);
 
         var totalPartitions = workDistributor.calculateTotalPartitions(processingId, activeNodes);
         Function<String, Integer> partitionFunction = workDistributor.createPartitionFunction(totalPartitions);
         try {
+            FilesUtil.createPublicDirectories(processingId, parameters.outputDirectory());
             FilesUtil.createPartitionDirectories(processingId, totalPartitions);
         } catch (IOException e) {
-            LOGGER.severe("(%d) [%s] Failed to create partition directories: %s".formatted(processingId,
-                    this.getClass().getSimpleName(), e.getMessage()));
-            throw new RuntimeException("Failed to create partition directories", e);
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Failed to create public and partition directories", e);
+            throw new ProcessingException("Failed to create public and partition directories", e);
         }
         var fileAssignments = workDistributor.distributeFiles(processingId, activeNodes, parameters.inputDirectory());
         var totalFiles = fileAssignments.values().stream()
@@ -65,9 +69,19 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     remoteNode.startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
                     remoteNode.startMapPhase(processingId, files);
                 }
+            // } catch (RemoteException e) {
+            //     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+            //             "Failed to map phase on %s".formatted(node), e);
+            //     throw new CompletionException(e);
+            //     // TODO handle failure, node may be dead
+            // } catch (ProcessingException e) {
+            //     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+            //             "Failed to map phase on %s".formatted(node), e);
+            //     throw new CompletionException(e);
+            //     // TODO handle failure stop if master node, redistribute if not
             } catch (Exception e) {
-                LOGGER.severe("(%d) [%s] Failed to map phase on %s: %s".formatted(
-                        processingId, this.getClass().getSimpleName(), node, e.getMessage()));
+                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                        "Failed to map phase on %s".formatted(node), e);
                 throw new CompletionException(e);
                 // TODO handle failure, node may be dead
             }
@@ -78,13 +92,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     public void startNodeProcessing(int processingId, ProcessingParameters parameters,
             Function<String, Integer> partitionFunction, String masterNode)
             throws RemoteException {
-        LOGGER.info("(%d) [%s] Starting node processing".formatted(processingId,
-                this.getClass().getSimpleName()));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Starting node processing");
         try {
             FilesUtil.createNodeDirectories(processingId);
         } catch (IOException e) {
-            LOGGER.severe("(%d) [%s] Failed to create directories: %s".formatted(processingId,
-                    this.getClass().getSimpleName(), e.getMessage()));
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Failed to create directories", e);
             throw new RemoteException("Failed to create directories", e);
         }
         var processingInfo = new ProcessingInfo(processingId, parameters, masterNode, partitionFunction);
@@ -93,7 +107,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     @Override
     public void startMapPhase(int processingId, List<String> files) throws RemoteException {
-        LOGGER.info("(%d) [%s] Starting map phase".formatted(processingId, this.getClass().getSimpleName()));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Starting map phase");
         var processingInfo = processingInfos.get(processingId);
         var paths = files.stream().map(Path::of).toList();
 
@@ -106,8 +121,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             var remoteNode = RmiUtil.getRemoteNode(masterNode);
             remoteNode.finishMapPhase(processingId, nodeAddress, result.processedFiles());
         } catch (Exception e) {
-            LOGGER.severe("(%d) [%s] Map phase failed: %s".formatted(processingId,
-                    this.getClass().getSimpleName(), e.getMessage()));
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Map phase failed", e);
             throw new RemoteException("Map phase failed", e);
         }
     }
@@ -118,27 +133,21 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 (_, processingState) -> processingState.addProcessedFiles(processedFiles));
 
         if (state.isMapPhaseCompleted()) {
-            LOGGER.info("(%d) [%s] Map phase completed on all nodes".formatted(
-                    processingId, this.getClass().getSimpleName()));
+            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                    "Map phase completed on all nodes");
             try {
                 FilesUtil.removeEmptyPartitionDirectories(processingId);
             } catch (IOException e) {
-                LOGGER.severe("(%d) [%s] Failed to remove empty partition directories: %s".formatted(
-                        processingId, this.getClass().getSimpleName(), e.getMessage()));
+                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                        "Failed to remove empty partition directories", e);
                 throw new RuntimeException("Failed to remove empty partition directories", e);
             }
 
             var updatedState = processingStates.compute(processingId, (_, processingState) -> {
                 var activeNodes = processingState.activeNodes();
-                try {
-                    var partitionAssignments = workDistributor.distributePartitions(
-                            processingId, activeNodes);
-                    return processingState.updatePartitionAssignments(partitionAssignments);
-                } catch (IOException e) {
-                    LOGGER.severe("(%d) [%s] Failed to distribute partitions: %s".formatted(
-                            processingId, this.getClass().getSimpleName(), e.getMessage()));
-                    throw new RuntimeException("Failed to distribute partitions", e);
-                }
+                var partitionAssignments = workDistributor.distributePartitions(
+                        processingId, activeNodes);
+                return processingState.updatePartitionAssignments(partitionAssignments);
             });
 
             updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
@@ -153,8 +162,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         remoteNode.startReducePhase(processingId, partitions);
                     }
                 } catch (Exception e) {
-                    LOGGER.severe("(%d) [%s] Failed to start reduce phase on %s: %s".formatted(
-                            processingId, this.getClass().getSimpleName(), activeNode, e.getMessage()));
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to start reduce phase on %s".formatted(activeNode), e);
                     throw new CompletionException(e);
                     // TODO handle failure, node may be dead
                 }
@@ -165,7 +174,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     @Override
     public void startReducePhase(int processingId, List<Integer> partitions)
             throws RemoteException {
-        LOGGER.info("(%d) [%s] Starting reduce phase".formatted(processingId, this.getClass().getSimpleName()));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Starting reduce phase");
 
         var processingInfo = processingInfos.get(processingId);
         if (processingInfo == null) {
@@ -173,18 +183,27 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         }
 
         if (partitions == null || partitions.isEmpty()) {
-            LOGGER.info("(%d) [%s] No partitions assigned to this node".formatted(
-                    processingId, this.getClass().getSimpleName()));
+            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                    "No partitions assigned to this node");
             return;
         }
 
         try {
+            var partitionFiles = new HashMap<Integer, List<Path>>();
+            for (var partition : partitions) {
+                var partitionDirectory = FilesUtil.getPartitionDirectory(processingId, partition);
+                var files = Files.list(partitionDirectory)
+                        .map(Path::getFileName)
+                        .toList();
+                partitionFiles.put(partition, files);
+            }
             var outputDirectory = Path.of(processingInfo.parameters().outputDirectory());
 
             var coordinator = new ReducePhaseCoordinator(
                     processingId,
                     processingInfo.parameters().reducerClassName(),
                     partitions,
+                    partitionFiles,
                     outputDirectory);
             var result = coordinator.execute();
 
@@ -193,8 +212,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             var remoteNode = RmiUtil.getRemoteNode(masterNode);
             remoteNode.finishReducePhase(processingId, nodeAddress, result.processedPartitions());
         } catch (Exception e) {
-            LOGGER.severe("(%d) [%s] Reduce phase failed: %s".formatted(
-                    processingId, this.getClass().getSimpleName(), e.getMessage()));
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Reduce phase failed", e);
             throw new RemoteException("Reduce phase failed", e);
         }
     }
@@ -206,8 +225,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 (_, processingState) -> processingState.addProcessedPartitions(processedPartitions));
 
         if (state.isReducePhaseCompleted()) {
-            LOGGER.info("(%d) [%s] Reduce phase completed on all nodes".formatted(
-                    processingId, this.getClass().getSimpleName()));
+            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                    "Reduce phase completed on all nodes");
             var updatedState = processingStates.compute(processingId,
                     (_, processingState) -> processingState.updateStatus(ProcessingStatus.FINISHED));
             updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
@@ -221,8 +240,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         remoteNode.finishProcessing(processingId);
                     }
                 } catch (Exception e) {
-                    LOGGER.severe("(%d) [%s] Failed to finish processing on %s: %s".formatted(
-                            processingId, this.getClass().getSimpleName(), activeNode, e.getMessage()));
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to finish processing on %s".formatted(activeNode), e);
                     throw new CompletionException(e);
                     // TODO handle failure, node may be dead
                 }
@@ -243,20 +262,20 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             try {
                 FilesUtil.removePublicDirectories(processingId);
             } catch (IOException e) {
-                LOGGER.severe("(%d) [%s] Failed to remove public directories: %s".formatted(
-                        processingId, this.getClass().getSimpleName(), e.getMessage()));
+                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                        "Failed to remove public directories", e);
                 throw new RuntimeException("Failed to remove public directories", e);
             }
         }
         try {
             FilesUtil.removeNodeDirectories(processingId);
         } catch (IOException e) {
-            LOGGER.severe("(%d) [%s] Failed to remove node directories: %s".formatted(
-                    processingId, this.getClass().getSimpleName(), e.getMessage()));
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                    "Failed to remove node directories", e);
             throw new RuntimeException("Failed to remove node directories", e);
         }
-        LOGGER.info("(%d) [%s] Processing completed successfully".formatted(
-                processingId, this.getClass().getSimpleName()));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Processing completed successfully");
     }
 
     @Override

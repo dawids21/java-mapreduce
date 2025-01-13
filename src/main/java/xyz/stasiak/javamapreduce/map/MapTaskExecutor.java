@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.util.FilesUtil;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class MapTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(MapTaskExecutor.class.getName());
@@ -22,17 +23,19 @@ class MapTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
-                LOGGER.info("Processing file: %s".formatted(currentTask.inputFile()));
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
+                        "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = FilesUtil.getMapFilesDirectory(currentTask.processingId())
                         .resolve(currentTask.inputFile().getFileName());
                 processFile(currentTask.inputFile(), outputFile);
                 result = MapResult.success(outputFile);
                 break;
             } catch (Exception e) {
-                LOGGER.warning("Error processing file: %s %s. Retries left: %d"
-                        .formatted(currentTask.inputFile(), e.getMessage(), currentTask.maxRetries() - 1));
+                LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
+                        "Error processing file: %s. Retries left: %d".formatted(currentTask.inputFile(),
+                                currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
-                result = MapResult.failure(e.getMessage());
+                result = MapResult.failure(e);
             }
         }
 

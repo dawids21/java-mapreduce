@@ -9,7 +9,9 @@ import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.ProcessingException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 public class MapPhaseCoordinator {
     private static final Logger LOGGER = Logger.getLogger(MapPhaseCoordinator.class.getName());
@@ -32,8 +34,8 @@ public class MapPhaseCoordinator {
     }
 
     public MapPhaseResult execute() {
-        LOGGER.info("(%d) [%s] Starting map phase with %d files".formatted(processingId,
-                MapPhaseCoordinator.class.getSimpleName(), files.size()));
+        LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                "Starting map phase with files: %s".formatted(files));
 
         var attempt = 0;
 
@@ -42,19 +44,18 @@ public class MapPhaseCoordinator {
                 var result = processFiles(files);
 
                 if (result.failedFiles().isEmpty()) {
-                    LOGGER.info("(%d) [%s] Map phase completed successfully".formatted(processingId,
-                            MapPhaseCoordinator.class.getSimpleName()));
+                    LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                            "Map phase completed successfully");
                     return new MapPhaseResult(result.processedCount());
                 }
 
-                LOGGER.info("(%d) [%s] Retrying map phase for all files"
-                        .formatted(processingId, MapPhaseCoordinator.class.getSimpleName()));
+                LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                        "Retrying map phase for all files");
                 attempt++;
             }
 
-            LOGGER.severe(
-                    "(%d) [%s] Map phase failed".formatted(processingId, MapPhaseCoordinator.class.getSimpleName()));
-            throw new RuntimeException("Map phase failed");
+            LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Map phase failed");
+            throw new ProcessingException("Map phase failed");
         } finally {
             executor.close();
         }
@@ -100,8 +101,7 @@ public class MapPhaseCoordinator {
                     processedFiles++;
                 }
             } catch (Exception e) {
-                LOGGER.severe("(%d) [%s] Error executing map task: %s".formatted(processingId,
-                        MapPhaseCoordinator.class.getSimpleName(), e.getMessage()));
+                LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Error executing map task", e);
                 failedFiles.add(filesToProcess.get(i));
             }
         }

@@ -8,6 +8,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
+
 record KeyValuePair(String key, String value) implements Comparable<KeyValuePair> {
     @Override
     public int compareTo(KeyValuePair other) {
@@ -29,16 +31,17 @@ class PartitionTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
-                LOGGER.info("Processing file: %s".formatted(currentTask.inputFile()));
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
+                        "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFiles = processFile(currentTask.inputFile());
                 result = PartitionResult.success(outputFiles);
                 break;
             } catch (Exception e) {
-                LOGGER.warning("(%d) [%s] Error processing file: %s %s. Retries left: %d"
-                        .formatted(currentTask.processingId(), this.getClass().getSimpleName(),
-                                currentTask.inputFile(), e.getMessage(), currentTask.maxRetries() - 1));
+                LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
+                        "Error processing file: %s. Retries left: %d".formatted(currentTask.inputFile(),
+                                currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
-                result = PartitionResult.failure(e.getMessage());
+                result = PartitionResult.failure(e);
             }
         }
 

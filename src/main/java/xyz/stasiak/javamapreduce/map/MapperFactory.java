@@ -1,10 +1,6 @@
 package xyz.stasiak.javamapreduce.map;
 
-import java.util.logging.Logger;
-
 public class MapperFactory {
-
-    private static final Logger LOGGER = Logger.getLogger(MapperFactory.class.getName());
 
 	public static Mapper createMapper(String mapperClassName) {
         try {
@@ -15,7 +11,6 @@ public class MapperFactory {
             }
             return (Mapper) mapperClass.getDeclaredConstructor().newInstance();
         } catch (ReflectiveOperationException e) {
-            LOGGER.severe("Failed to create mapper: " + e.getMessage());
             throw new RuntimeException("Failed to create mapper", e);
         }
     }

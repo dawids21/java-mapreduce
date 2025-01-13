@@ -13,42 +13,41 @@ import java.util.logging.Logger;
 import xyz.stasiak.javamapreduce.cli.CommandLineParser;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
 import xyz.stasiak.javamapreduce.rmi.RemoteServer;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 public class CliApplication {
     private static final Logger LOGGER = Logger.getLogger(CliApplication.class.getName());
     private static final Properties properties = new Properties();
-    private final CommandLineParser parser;
+    private final CommandLineParser parser = new CommandLineParser();
     private Registry rmiRegistry;
     private RemoteServer remoteServer;
 
     static {
-        try {
-            LogManager.getLogManager().readConfiguration(
-                    CliApplication.class.getClassLoader().getResourceAsStream("logging.properties"));
-            loadProperties();
+        try (var loggingProperties = CliApplication.class.getClassLoader().getResourceAsStream("logging.properties");
+                var applicationProperties = CliApplication.class.getClassLoader()
+                        .getResourceAsStream("application.properties")) {
+            LogManager.getLogManager().readConfiguration(loggingProperties);
+            properties.load(applicationProperties);
         } catch (IOException e) {
-            System.err.println("Could not load configuration");
-            e.printStackTrace();
+            LoggingUtil.logSevere(LOGGER, CliApplication.class, "Could not load configuration", e);
+            throw new IllegalStateException("Could not load configuration", e);
         }
     }
 
     public CliApplication() {
-        this.parser = new CommandLineParser();
         try {
             connectToServer();
         } catch (RemoteException | NotBoundException e) {
-            LOGGER.severe("Failed to connect to server: " + e.getMessage());
+            LoggingUtil.logSevere(LOGGER, CliApplication.class, "Failed to connect to server", e);
             throw new IllegalStateException("Could not connect to server", e);
         }
     }
 
-    private static void loadProperties() throws IOException {
-        try (var input = CliApplication.class.getClassLoader().getResourceAsStream("application.properties")) {
-            if (input == null) {
-                throw new IllegalStateException("Unable to find application.properties");
-            }
-            properties.load(input);
-        }
+    private void connectToServer() throws RemoteException, NotBoundException {
+        var port = Integer.parseInt(properties.getProperty("rmi.port", "1099"));
+        rmiRegistry = LocateRegistry.getRegistry(port);
+        remoteServer = (RemoteServer) rmiRegistry.lookup("server");
+        LoggingUtil.logInfo(LOGGER, CliApplication.class, "Connected to RMI server on port " + port);
     }
 
     public static void main(String[] args) {
@@ -57,7 +56,7 @@ public class CliApplication {
     }
 
     void run() {
-        LOGGER.info("Starting Java MapReduce CLI application");
+        LoggingUtil.logInfo(LOGGER, CliApplication.class, "Starting Java MapReduce CLI application");
         try (var scanner = new Scanner(System.in)) {
             processCommands(scanner);
         }
@@ -75,21 +74,17 @@ public class CliApplication {
             var commandWithArguments = parser.parse(line);
 
             if (commandWithArguments == null) {
-                LOGGER.severe("Unknown command: " + line);
+                LoggingUtil.logSevere(LOGGER, CliApplication.class, "Unknown command: " + line);
                 continue;
             }
 
-            try {
-                if (processCommand(commandWithArguments)) {
-                    return;
-                }
-            } catch (IOException e) {
-                LOGGER.severe("Failed to process command: " + e.getMessage());
+            if (processCommand(commandWithArguments)) {
+                return;
             }
         }
     }
 
-    private boolean processCommand(CommandWithArguments commandWithArguments) throws IOException {
+    private boolean processCommand(CommandWithArguments commandWithArguments) {
         return switch (commandWithArguments.command()) {
             case START -> {
                 handleStart(commandWithArguments);
@@ -100,38 +95,32 @@ public class CliApplication {
                 yield false;
             }
             case EXIT -> {
-                LOGGER.info("Shutting down");
+                LoggingUtil.logInfo(LOGGER, CliApplication.class, "Shutting down");
                 yield true;
             }
         };
     }
 
-    private void connectToServer() throws RemoteException, NotBoundException {
-        var port = Integer.parseInt(properties.getProperty("rmi.port", "1099"));
-        rmiRegistry = LocateRegistry.getRegistry(port);
-        remoteServer = (RemoteServer) rmiRegistry.lookup("server");
-        LOGGER.info("Connected to RMI server on port " + port);
-    }
-
-    private void handleStart(CommandWithArguments command) throws IOException {
+    private void handleStart(CommandWithArguments command) {
+        LoggingUtil.logInfo(LOGGER, CliApplication.class, "Starting processing");
         var parameters = command.toProcessingParameters();
         try {
             var processingId = remoteServer.startProcessing(parameters);
-            LOGGER.info("Processing started with ID: %d".formatted(processingId));
+            LoggingUtil.logInfo(LOGGER, CliApplication.class, "Processing started with ID: %d".formatted(processingId));
         } catch (RemoteException e) {
-            LOGGER.severe("Failed to start processing: " + e.getMessage());
-            throw new IOException("Failed to start processing", e);
+            LoggingUtil.logSevere(LOGGER, CliApplication.class, "Failed to start processing", e);
         }
     }
 
-    private void handleStatus(CommandWithArguments command) throws IOException {
+    private void handleStatus(CommandWithArguments command) {
         var processingId = Integer.parseInt(command.arguments().get(0));
+        LoggingUtil.logInfo(LOGGER, processingId, CliApplication.class, "Checking processing status");
         try {
             var status = remoteServer.getProcessingStatus(processingId);
-            LOGGER.info("Processing %d status: %s".formatted(processingId, status));
+            LoggingUtil.logInfo(LOGGER, processingId, CliApplication.class,
+                    "Processing %d status: %s".formatted(processingId, status));
         } catch (RemoteException e) {
-            LOGGER.severe("Failed to get processing status: " + e.getMessage());
-            throw new IOException("Failed to get processing status", e);
+            LoggingUtil.logSevere(LOGGER, processingId, CliApplication.class, "Failed to get processing status", e);
         }
     }
 }

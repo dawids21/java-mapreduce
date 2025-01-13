@@ -12,6 +12,7 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.rmi.RemoteNodeImpl;
 import xyz.stasiak.javamapreduce.rmi.RemoteServerImpl;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 public class Application {
     private static final Logger LOGGER = Logger.getLogger(Application.class.getName());
@@ -21,31 +22,19 @@ public class Application {
     private RemoteServerImpl remoteServer;
 
     static {
-        try {
-            LogManager.getLogManager().readConfiguration(
-                    Application.class.getClassLoader().getResourceAsStream("logging.properties"));
-            loadProperties();
+        try (var loggingProperties = Application.class.getClassLoader().getResourceAsStream("logging.properties");
+                var applicationProperties = Application.class.getClassLoader()
+                        .getResourceAsStream("application.properties")) {
+            LogManager.getLogManager().readConfiguration(loggingProperties);
+            properties.load(applicationProperties);
         } catch (IOException e) {
-            System.err.println("Could not load configuration");
-            e.printStackTrace();
+            LoggingUtil.logSevere(LOGGER, Application.class, "Could not load configuration", e);
+            throw new IllegalStateException("Could not load configuration", e);
         }
-    }
-
-    private static void loadProperties() throws IOException {
-        try (var input = Application.class.getClassLoader().getResourceAsStream("application.properties")) {
-            if (input == null) {
-                throw new IllegalStateException("Unable to find application.properties");
-            }
-            properties.load(input);
-        }
-    }
-
-    public static Properties getProperties() {
-        return properties;
     }
 
     Application() {
-        LOGGER.info("Starting Java MapReduce application");
+        LoggingUtil.logInfo(LOGGER, Application.class, "Starting Java MapReduce application");
         initializeRmiRegistry();
         initializeRemoteNode();
         registerShutdownHook();
@@ -55,16 +44,17 @@ public class Application {
         try {
             var rmiPort = Integer.parseInt(getProperty("rmi.port"));
             rmiRegistry = LocateRegistry.createRegistry(rmiPort);
-            LOGGER.info("RMI Registry started on port " + rmiPort);
+            LoggingUtil.logInfo(LOGGER, Application.class, "RMI Registry started on port " + rmiPort);
         } catch (RemoteException e) {
             try {
-                LOGGER.info("Registry already exists, attempting to locate it");
+                LoggingUtil.logWarning(LOGGER, Application.class, "Registry already exists, attempting to locate it",
+                        e);
                 rmiRegistry = LocateRegistry.getRegistry();
                 rmiRegistry.list();
-                LOGGER.info("Successfully connected to existing RMI Registry");
+                LoggingUtil.logInfo(LOGGER, Application.class, "Successfully connected to existing RMI Registry");
             } catch (RemoteException re) {
-                LOGGER.severe("Failed to create or locate RMI registry: " + re.getMessage());
-                throw new IllegalStateException("Could not initialize RMI registry", re);
+                LoggingUtil.logSevere(LOGGER, Application.class, "Failed to create or locate RMI registry", re);
+                throw new IllegalStateException("Failed to create or locate RMI registry", re);
             }
         }
     }
@@ -76,7 +66,7 @@ public class Application {
             remoteServer = new RemoteServerImpl(remoteNode);
             rmiRegistry.rebind("server", remoteServer);
         } catch (RemoteException e) {
-            LOGGER.severe("Failed to initialize RemoteNode: " + e.getMessage());
+            LoggingUtil.logSevere(LOGGER, Application.class, "Failed to initialize RemoteNode", e);
             throw new IllegalStateException("Could not initialize RemoteNode", e);
         }
     }
@@ -86,20 +76,28 @@ public class Application {
             try {
                 if (remoteNode != null) {
                     rmiRegistry.unbind("node");
-                    LOGGER.info("RemoteNode unbound from registry");
+                    LoggingUtil.logInfo(LOGGER, Application.class, "RemoteNode unbound from registry");
                 }
                 if (remoteServer != null) {
                     rmiRegistry.unbind("server");
-                    LOGGER.info("RemoteServer unbound from registry");
+                    LoggingUtil.logInfo(LOGGER, Application.class, "RemoteServer unbound from registry");
                 }
             } catch (Exception e) {
-                LOGGER.warning("Error while cleaning up RemoteNode: " + e.getMessage());
+                LoggingUtil.logWarning(LOGGER, Application.class, "Error while cleaning up RemoteNode", e);
             }
         }));
     }
 
     public static void main(String[] args) {
         new Application();
+    }
+
+    public static String getPublicDirectory() {
+        return getProperty("public.directory");
+    }
+    
+    public static String getRmiPort() {
+        return getProperty("rmi.port");
     }
 
     public static String getNodeAddress() {

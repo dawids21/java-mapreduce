@@ -8,6 +8,8 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
+
 class ReduceTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(ReduceTaskExecutor.class.getName());
     private final ReduceTask task;
@@ -22,18 +24,18 @@ class ReduceTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
-                LOGGER.info("(%d) [%s] Processing file: %s".formatted(
-                        currentTask.processingId(), this.getClass().getSimpleName(), currentTask.inputFile()));
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
+                        "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = currentTask.outputDirectory().resolve(currentTask.inputFile().getFileName());
                 processFile(currentTask.inputFile(), outputFile);
                 result = ReduceResult.success(outputFile);
                 break;
             } catch (Exception e) {
-                LOGGER.warning("(%d) [%s] Error processing file: %s %s. Retries left: %d"
-                        .formatted(currentTask.processingId(), this.getClass().getSimpleName(),
-                                currentTask.inputFile(), e.getMessage(), currentTask.maxRetries() - 1));
+                LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
+                        "Error processing file: %s. Retries left: %d".formatted(currentTask.inputFile(),
+                                currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
-                result = ReduceResult.failure(e.getMessage());
+                result = ReduceResult.failure(e);
             }
         }
 
@@ -54,10 +56,6 @@ class ReduceTaskExecutor {
 
         while ((line = reader.readLine()) != null) {
             var parts = line.split("\t");
-            if (parts.length != 2) {
-                throw new IOException("Invalid line format: " + line);
-            }
-
             var key = parts[0];
             var value = parts[1];
 

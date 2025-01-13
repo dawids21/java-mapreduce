@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
+
 class MergeTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(MergeTaskExecutor.class.getName());
     private final MergeTask task;
@@ -33,9 +35,8 @@ class MergeTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
-                LOGGER.info("(%d) [%s] Merging partition: %d"
-                        .formatted(currentTask.processingId(), this.getClass().getSimpleName(),
-                                currentTask.partitionId()));
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
+                        "Merging partition: %d".formatted(currentTask.partitionId()));
 
                 var outputFile = currentTask.outputDirectory()
                         .resolve(String.valueOf(currentTask.partitionId()));
@@ -45,11 +46,11 @@ class MergeTaskExecutor {
                 result = MergeResult.success(outputFile);
                 break;
             } catch (Exception e) {
-                LOGGER.warning("(%d) [%s] Error merging partition %d: %s. Retries left: %d"
-                        .formatted(currentTask.processingId(), this.getClass().getSimpleName(),
-                                currentTask.partitionId(), e.getMessage(), currentTask.maxRetries() - 1));
+                LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
+                        "Error merging partition %d: %s. Retries left: %d".formatted(currentTask.partitionId(),
+                                e.getMessage(), currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
-                result = MergeResult.failure(e.getMessage());
+                result = MergeResult.failure(e);
             }
         }
 
@@ -112,14 +113,9 @@ class MergeTaskExecutor {
         return minHandle;
     }
 
-    private void closeFileHandles(List<FileHandle> fileHandles) {
+    private void closeFileHandles(List<FileHandle> fileHandles) throws IOException {
         for (var handle : fileHandles) {
-            try {
-                handle.reader.close();
-            } catch (IOException e) {
-                LOGGER.warning("(%d) [%s] Error closing file handle: %s"
-                        .formatted(task.processingId(), this.getClass().getSimpleName(), e.getMessage()));
-            }
+            handle.reader.close();
         }
     }
 }
