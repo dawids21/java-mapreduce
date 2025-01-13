@@ -4,6 +4,8 @@ import java.io.IOException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -100,11 +102,21 @@ public class Application {
         new Application();
     }
 
-    public static String getProperty(String key) {
-        return System.getProperty(key, properties.getProperty(key));
+    public static String getNodeAddress() {
+        return getProperty("node.address");
+    }
+
+    public static List<String> getKnownNodes() {
+        return Arrays.stream(getProperty("known.nodes").split(","))
+                .map(String::trim)
+                .toList();
     }
 
     public RemoteServerImpl getRemoteServer() {
         return remoteServer;
+    }
+
+    private static String getProperty(String key) {
+        return System.getProperty(key, properties.getProperty(key));
     }
 }

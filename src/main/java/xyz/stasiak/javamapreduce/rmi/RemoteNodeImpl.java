@@ -52,7 +52,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 .updateFileAssignments(fileAssignments);
         processingStates.put(processingId, processingState);
 
-        var masterNode = Application.getProperty("node.address");
+        var masterNode = Application.getNodeAddress();
         activeNodes.forEach(node -> CompletableFuture.runAsync(() -> {
             try {
                 var files = processingState.fileAssignments().get(node);
@@ -101,7 +101,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             var coordinator = new MapPhaseCoordinator(processingId, processingInfo.parameters().mapperClassName(),
                     Path.of(processingInfo.parameters().inputDirectory()), paths, processingInfo.partitionFunction());
             var result = coordinator.execute();
-            var nodeAddress = Application.getProperty("node.address");
+            var nodeAddress = Application.getNodeAddress();
             var masterNode = processingInfo.masterNode();
             var remoteNode = RmiUtil.getRemoteNode(masterNode);
             remoteNode.finishMapPhase(processingId, nodeAddress, result.processedFiles());
@@ -144,7 +144,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
                 try {
                     var partitions = updatedState.partitionAssignments().get(activeNode);
-                    if (activeNode.equals(Application.getProperty("node.address"))) {
+                    if (activeNode.equals(Application.getNodeAddress())) {
                         processingStates.compute(processingId,
                                 (_, processingState) -> processingState.updateStatus(ProcessingStatus.REDUCING));
                         startReducePhase(processingId, partitions);
@@ -188,7 +188,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     outputDirectory);
             var result = coordinator.execute();
 
-            var nodeAddress = Application.getProperty("node.address");
+            var nodeAddress = Application.getNodeAddress();
             var masterNode = processingInfo.masterNode();
             var remoteNode = RmiUtil.getRemoteNode(masterNode);
             remoteNode.finishReducePhase(processingId, nodeAddress, result.processedPartitions());
@@ -212,7 +212,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     (_, processingState) -> processingState.updateStatus(ProcessingStatus.FINISHED));
             updatedState.activeNodes().forEach(activeNode -> CompletableFuture.runAsync(() -> {
                 try {
-                    if (activeNode.equals(Application.getProperty("node.address"))) {
+                    if (activeNode.equals(Application.getNodeAddress())) {
                         processingStates.compute(processingId,
                                 (_, processingState) -> processingState.updateStatus(ProcessingStatus.FINISHED));
                         finishProcessing(processingId);
@@ -238,7 +238,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     @Override
     public void finishProcessing(int processingId) throws RemoteException {
         var processingInfo = processingInfos.remove(processingId);
-        var nodeAddress = Application.getProperty("node.address");
+        var nodeAddress = Application.getNodeAddress();
         if (nodeAddress.equals(processingInfo.masterNode())) {
             try {
                 FilesUtil.removePublicDirectories(processingId);

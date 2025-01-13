@@ -8,7 +8,6 @@ import java.rmi.Naming;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,9 +27,7 @@ class WorkDistributor {
     }
 
     List<String> getActiveNodes(int processingId) throws RemoteException {
-        var knownNodes = Arrays.stream(Application.getProperty("known.nodes").split(","))
-                .map(String::trim)
-                .toList();
+        var knownNodes = Application.getKnownNodes();
         LOGGER.info("(%d) [%s] Starting node discovery for active nodes".formatted(processingId,
                 this.getClass().getSimpleName()));
 
