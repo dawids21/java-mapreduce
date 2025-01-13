@@ -87,6 +87,14 @@ public class FileManager {
         }
     }
 
+    public static void removeNodeDirectories(int processingId) throws IOException {
+        deleteDirectory(getBaseNodeDirectory(processingId));
+    }
+
+    public static void removePublicDirectories(int processingId) throws IOException {
+        deleteDirectory(getBasePublicDirectory(processingId));
+    }
+
     private static void deleteDirectory(Path directory) throws IOException {
         Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
             @Override

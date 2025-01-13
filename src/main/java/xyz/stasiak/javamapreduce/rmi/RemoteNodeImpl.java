@@ -237,7 +237,24 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     @Override
     public void finishProcessing(int processingId) throws RemoteException {
-        processingInfos.remove(processingId);
+        var processingInfo = processingInfos.remove(processingId);
+        var nodeAddress = Application.getProperty("node.address");
+        if (nodeAddress.equals(processingInfo.masterNode())) {
+            try {
+                FileManager.removePublicDirectories(processingId);
+            } catch (IOException e) {
+                LOGGER.severe("(%d) [%s] Failed to remove public directories: %s".formatted(
+                        processingId, this.getClass().getSimpleName(), e.getMessage()));
+                throw new RuntimeException("Failed to remove public directories", e);
+            }
+        }
+        try {
+            FileManager.removeNodeDirectories(processingId);
+        } catch (IOException e) {
+            LOGGER.severe("(%d) [%s] Failed to remove node directories: %s".formatted(
+                    processingId, this.getClass().getSimpleName(), e.getMessage()));
+            throw new RuntimeException("Failed to remove node directories", e);
+        }
         LOGGER.info("(%d) [%s] Processing completed successfully".formatted(
                 processingId, this.getClass().getSimpleName()));
     }
