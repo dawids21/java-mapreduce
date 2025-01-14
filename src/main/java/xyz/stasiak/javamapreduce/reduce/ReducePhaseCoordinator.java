@@ -1,7 +1,10 @@
 package xyz.stasiak.javamapreduce.reduce;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -19,30 +22,42 @@ public class ReducePhaseCoordinator {
 
     private final int processingId;
     private final String reducerClassName;
-    private final List<Integer> partitionAssignments;
-    private final Map<Integer, List<Path>> partitionFiles;
+    private final List<Integer> partitions;
     private final Path outputDirectory;
     private final ExecutorService executor;
 
-    public ReducePhaseCoordinator(int processingId, String reducerClassName, List<Integer> partitionAssignments,
-            Map<Integer, List<Path>> partitionFiles, Path outputDirectory) {
+    public ReducePhaseCoordinator(int processingId, String reducerClassName, List<Integer> partitions,
+            String outputDirectory) {
         this.processingId = processingId;
         this.reducerClassName = reducerClassName;
-        this.partitionAssignments = partitionAssignments;
-        this.partitionFiles = partitionFiles;
-        this.outputDirectory = outputDirectory;
+        this.partitions = partitions;
+        this.outputDirectory = Path.of(outputDirectory);
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
     }
 
     public ReducePhaseResult execute() {
         LoggingUtil.logInfo(LOGGER, processingId, getClass(),
-                "Starting reduce phase with partitions: %s".formatted(partitionAssignments));
+                "Starting reduce phase with partitions: %s".formatted(partitions));
 
         var attempt = 0;
-
         try {
+            var partitionFiles = new HashMap<Integer, List<Path>>();
+            for (var partition : partitions) {
+                var partitionDirectory = FilesUtil.getPartitionDirectory(processingId, partition);
+                List<Path> files;
+                try {
+                    files = Files.list(partitionDirectory)
+                            .map(Path::getFileName)
+                            .toList();
+                } catch (IOException e) {
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Error getting partition files", e);
+                    throw new ProcessingException("Error getting partition files");
+                }
+                partitionFiles.put(partition, files);
+            }
+
             while (attempt <= MAX_RETRIES) {
-                var result = processPartitions(partitionAssignments, partitionFiles);
+                var result = processPartitions(partitions, partitionFiles);
 
                 if (result.failedPartitions().isEmpty()) {
                     LoggingUtil.logInfo(LOGGER, processingId, getClass(),

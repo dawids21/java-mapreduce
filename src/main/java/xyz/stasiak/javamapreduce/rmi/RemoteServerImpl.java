@@ -3,7 +3,6 @@ package xyz.stasiak.javamapreduce.rmi;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 
 public class RemoteServerImpl extends UnicastRemoteObject implements RemoteServer {
 
@@ -17,9 +16,7 @@ public class RemoteServerImpl extends UnicastRemoteObject implements RemoteServe
     @Override
     public int startProcessing(ProcessingParameters parameters) throws RemoteException {
         var processingId = new Random().nextInt(1_000_000_000);
-        CompletableFuture.runAsync(() -> {
-            remoteNode.startProcessing(processingId, parameters);
-        });
+        remoteNode.startProcessing(processingId, parameters);
         return processingId;
     }
 

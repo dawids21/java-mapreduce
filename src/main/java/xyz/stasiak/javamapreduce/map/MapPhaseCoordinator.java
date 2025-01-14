@@ -23,12 +23,14 @@ public class MapPhaseCoordinator {
     private final Function<String, Integer> partitionFunction;
     private final ExecutorService executor;
 
-    public MapPhaseCoordinator(int processingId, String mapperClassName, Path inputDirectory, List<Path> files,
+    public MapPhaseCoordinator(int processingId, String mapperClassName, String inputDirectory, List<String> files,
             Function<String, Integer> partitionFunction) {
         this.processingId = processingId;
         this.mapperClassName = mapperClassName;
-        this.inputDirectory = inputDirectory;
-        this.files = files;
+        this.inputDirectory = Path.of(inputDirectory);
+        this.files = files.stream()
+                .map(Path::of)
+                .toList();
         this.partitionFunction = partitionFunction;
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
     }

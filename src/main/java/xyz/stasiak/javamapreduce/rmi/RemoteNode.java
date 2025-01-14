@@ -7,11 +7,9 @@ import java.util.function.Function;
 
 public interface RemoteNode extends Remote {
 
-    void startNodeProcessing(int processingId, ProcessingParameters parameters,
+    void startNodeProcessingAndMapPhase(int processingId, ProcessingParameters parameters, List<String> files,
             Function<String, Integer> partitionFunction,
             String masterNode) throws RemoteException;
-
-    void startMapPhase(int processingId, List<String> files) throws RemoteException;
 
     void finishMapPhase(int processingId, String node, int processedFiles) throws RemoteException;
 
