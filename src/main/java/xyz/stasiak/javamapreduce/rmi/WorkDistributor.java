@@ -45,11 +45,6 @@ class WorkDistributor {
     }
 
     Map<String, List<String>> distributeFiles(int processingId, List<String> activeNodes, String inputDirectory) {
-        var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
-        var totalPower = nodesWithPower.values().stream()
-                .mapToInt(NodeInfo::processingPower)
-                .sum();
-
         List<String> files;
         try {
             files = Files.list(Path.of(inputDirectory)).map(path -> path.getFileName().toString()).toList();
@@ -58,6 +53,14 @@ class WorkDistributor {
                     "Failed to list files in directory %s".formatted(inputDirectory), e);
             throw new ProcessingException("Failed to list files in directory", e);
         }
+        return redistributeFiles(processingId, activeNodes, files);
+    }
+
+    Map<String, List<String>> redistributeFiles(int processingId, List<String> activeNodes, List<String> files) {
+        var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
+        var totalPower = nodesWithPower.values().stream()
+                .mapToInt(NodeInfo::processingPower)
+                .sum();
 
         var result = new HashMap<String, List<String>>();
         var remainingFiles = new ArrayList<>(files);
@@ -87,12 +90,6 @@ class WorkDistributor {
     }
 
     Map<String, List<Integer>> distributePartitions(int processingId, List<String> activeNodes) {
-        var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
-        var totalPower = nodesWithPower.values().stream()
-                .mapToInt(NodeInfo::processingPower)
-                .sum();
-
-        var result = new HashMap<String, List<Integer>>();
         List<Integer> partitionsToDistribute;
         try {
             partitionsToDistribute = FilesUtil.getPartitions(processingId);
@@ -101,9 +98,19 @@ class WorkDistributor {
                     "Failed to get partitions for processing", e);
             throw new ProcessingException("Failed to get partitions for processing", e);
         }
-        var remainingPartitions = new ArrayList<Integer>(partitionsToDistribute);
-        var totalPartitions = partitionsToDistribute.size();
+        return redistributePartitions(processingId, activeNodes, partitionsToDistribute);
+    }
 
+    Map<String, List<Integer>> redistributePartitions(int processingId, List<String> activeNodes,
+            List<Integer> partitions) {
+        var remainingPartitions = new ArrayList<Integer>(partitions);
+        var nodesWithPower = getActiveNodesWithPower(processingId, activeNodes);
+        var totalPower = nodesWithPower.values().stream()
+                .mapToInt(NodeInfo::processingPower)
+                .sum();
+
+        var totalPartitions = partitions.size();
+        var result = new HashMap<String, List<Integer>>();
         for (var entry : nodesWithPower.entrySet()) {
             var nodeAddress = entry.getKey();
             var nodeInfo = entry.getValue();

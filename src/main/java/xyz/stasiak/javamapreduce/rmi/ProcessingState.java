@@ -82,6 +82,23 @@ record ProcessingState(
         return processedPartitions == totalPartitions;
     }
 
+    NodeRemovalResult removeNode(String node) {
+        var newActiveNodes = new ArrayList<>(activeNodes);
+        var success = newActiveNodes.remove(node);
+        return new NodeRemovalResult(
+                new ProcessingState(
+                        processingId,
+                        newActiveNodes,
+                        status,
+                        fileAssignments,
+                        partitionAssignments,
+                        totalFiles,
+                        totalPartitions,
+                        processedFiles,
+                        processedPartitions),
+                success);
+    }
+
     ProcessingState updateFileAssignments(Map<String, List<String>> fileAssignments) {
         var newFileAssignments = new HashMap<>(this.fileAssignments);
         this.fileAssignments.forEach((node, files) -> {
@@ -127,5 +144,29 @@ record ProcessingState(
                 newTotalPartitions,
                 processedFiles,
                 processedPartitions);
+    }
+
+    boolean nodeHasAssignments(String node) {
+        return fileAssignments.containsKey(node) || partitionAssignments.containsKey(node);
+    }
+
+    ProcessingState removeNodeAssignments(String node) {
+        var newFileAssignments = new HashMap<>(fileAssignments);
+        newFileAssignments.remove(node);
+        var newPartitionAssignments = new HashMap<>(partitionAssignments);
+        newPartitionAssignments.remove(node);
+        return new ProcessingState(
+                processingId,
+                activeNodes,
+                status,
+                newFileAssignments,
+                newPartitionAssignments,
+                totalFiles,
+                totalPartitions,
+                processedFiles,
+                processedPartitions);
+    }
+
+    static record NodeRemovalResult(ProcessingState newState, boolean success) {
     }
 }
