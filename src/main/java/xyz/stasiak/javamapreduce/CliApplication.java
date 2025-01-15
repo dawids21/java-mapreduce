@@ -113,7 +113,7 @@ public class CliApplication {
     }
 
     private void handleStatus(CommandWithArguments command) {
-        var processingId = Integer.parseInt(command.arguments().get(0));
+        var processingId = Integer.parseInt(command.arguments().getFirst());
         System.out.println("Checking processing status");
         try {
             var status = remoteServer.getProcessingStatus(processingId);

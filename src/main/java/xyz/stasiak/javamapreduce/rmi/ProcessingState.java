@@ -11,12 +11,10 @@ record ProcessingState(
         ProcessingStatus status,
         Map<String, List<String>> fileAssignments,
         Map<String, List<Integer>> partitionAssignments,
-        int totalFiles,
-        int totalPartitions,
         int processedFiles,
         int processedPartitions) {
 
-    static ProcessingState create(int processingId, List<String> activeNodes, int totalFiles, int totalPartitions) {
+    static ProcessingState create(int processingId, List<String> activeNodes) {
 
         var fileAssignments = new HashMap<String, List<String>>();
         activeNodes.forEach(node -> fileAssignments.put(node, new ArrayList<>()));
@@ -29,8 +27,6 @@ record ProcessingState(
                 ProcessingStatus.NOT_STARTED,
                 fileAssignments,
                 partitionAssignments,
-                totalFiles,
-                totalPartitions,
                 0,
                 0);
     }
@@ -42,8 +38,6 @@ record ProcessingState(
                 status,
                 fileAssignments,
                 partitionAssignments,
-                totalFiles,
-                totalPartitions,
                 processedFiles,
                 processedPartitions);
     }
@@ -55,8 +49,6 @@ record ProcessingState(
                 status,
                 fileAssignments,
                 partitionAssignments,
-                totalFiles,
-                totalPartitions,
                 processedFiles + count,
                 processedPartitions);
     }
@@ -68,17 +60,17 @@ record ProcessingState(
                 status,
                 fileAssignments,
                 partitionAssignments,
-                totalFiles,
-                totalPartitions,
                 processedFiles,
                 processedPartitions + count);
     }
 
     boolean isMapPhaseCompleted() {
+        var totalFiles = fileAssignments.values().stream().mapToInt(List::size).sum();
         return processedFiles == totalFiles;
     }
 
     boolean isReducePhaseCompleted() {
+        var totalPartitions = partitionAssignments.values().stream().mapToInt(List::size).sum();
         return processedPartitions == totalPartitions;
     }
 
@@ -92,8 +84,6 @@ record ProcessingState(
                         status,
                         fileAssignments,
                         partitionAssignments,
-                        totalFiles,
-                        totalPartitions,
                         processedFiles,
                         processedPartitions),
                 success);
@@ -101,24 +91,19 @@ record ProcessingState(
 
     ProcessingState updateFileAssignments(Map<String, List<String>> fileAssignments) {
         var newFileAssignments = new HashMap<>(this.fileAssignments);
-        this.fileAssignments.forEach((node, files) -> {
-            newFileAssignments.put(node, new ArrayList<>(files));
-        });
+        this.fileAssignments.forEach((node, files) -> newFileAssignments.put(node, new ArrayList<>(files)));
         fileAssignments.forEach((node, files) -> {
             var assignment = newFileAssignments.get(node);
             if (assignment != null) {
                 assignment.addAll(files);
             }
         });
-        var newTotalFiles = newFileAssignments.values().stream().mapToInt(List::size).sum();
         return new ProcessingState(
                 processingId,
                 activeNodes,
                 status,
                 newFileAssignments,
                 partitionAssignments,
-                newTotalFiles,
-                totalPartitions,
                 processedFiles,
                 processedPartitions);
     }
@@ -133,21 +118,14 @@ record ProcessingState(
                 assignment.addAll(partitions);
             }
         });
-        var newTotalPartitions = newPartitionAssignments.values().stream().mapToInt(List::size).sum();
         return new ProcessingState(
                 processingId,
                 activeNodes,
                 status,
                 fileAssignments,
                 newPartitionAssignments,
-                totalFiles,
-                newTotalPartitions,
                 processedFiles,
                 processedPartitions);
-    }
-
-    boolean nodeHasAssignments(String node) {
-        return fileAssignments.containsKey(node) || partitionAssignments.containsKey(node);
     }
 
     ProcessingState removeNodeAssignments(String node) {
@@ -161,12 +139,10 @@ record ProcessingState(
                 status,
                 newFileAssignments,
                 newPartitionAssignments,
-                totalFiles,
-                totalPartitions,
                 processedFiles,
                 processedPartitions);
     }
 
-    static record NodeRemovalResult(ProcessingState newState, boolean success) {
+    record NodeRemovalResult(ProcessingState newState, boolean success) {
     }
 }

@@ -47,11 +47,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             }
             var fileAssignments = workDistributor.distributeFiles(processingId, activeNodes,
                     parameters.inputDirectory());
-            var totalFiles = fileAssignments.values().stream()
-                    .mapToInt(List::size)
-                    .sum();
             var processingState = ProcessingState
-                    .create(processingId, activeNodes, totalFiles, totalPartitions)
+                    .create(processingId, activeNodes)
                     .updateFileAssignments(fileAssignments);
             processingStates.put(processingId, processingState);
 
