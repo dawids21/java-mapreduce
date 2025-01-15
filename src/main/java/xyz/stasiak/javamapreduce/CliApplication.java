@@ -74,7 +74,7 @@ public class CliApplication {
             var commandWithArguments = parser.parse(line);
 
             if (commandWithArguments == null) {
-                LoggingUtil.logSevere(LOGGER, CliApplication.class, "Unknown command: " + line);
+                System.out.println("Unknown command: " + line);
                 continue;
             }
 
@@ -95,32 +95,31 @@ public class CliApplication {
                 yield false;
             }
             case EXIT -> {
-                LoggingUtil.logInfo(LOGGER, CliApplication.class, "Shutting down");
+                System.out.println("Shutting down");
                 yield true;
             }
         };
     }
 
     private void handleStart(CommandWithArguments command) {
-        LoggingUtil.logInfo(LOGGER, CliApplication.class, "Starting processing");
+        System.out.println("Starting processing");
         var parameters = command.toProcessingParameters();
         try {
             var processingId = remoteServer.startProcessing(parameters);
-            LoggingUtil.logInfo(LOGGER, CliApplication.class, "Processing started with ID: %d".formatted(processingId));
+            System.out.printf("Processing started with ID: %d%n", processingId);
         } catch (RemoteException e) {
-            LoggingUtil.logSevere(LOGGER, CliApplication.class, "Failed to start processing", e);
+            System.out.println("Failed to start processing");
         }
     }
 
     private void handleStatus(CommandWithArguments command) {
         var processingId = Integer.parseInt(command.arguments().get(0));
-        LoggingUtil.logInfo(LOGGER, processingId, CliApplication.class, "Checking processing status");
+        System.out.println("Checking processing status");
         try {
             var status = remoteServer.getProcessingStatus(processingId);
-            LoggingUtil.logInfo(LOGGER, processingId, CliApplication.class,
-                    "Processing %d status: %s".formatted(processingId, status));
+            System.out.printf("Processing %d status: %s%n", processingId, status);
         } catch (RemoteException e) {
-            LoggingUtil.logSevere(LOGGER, processingId, CliApplication.class, "Failed to get processing status", e);
+            System.out.println("Failed to get processing status");
         }
     }
 }
