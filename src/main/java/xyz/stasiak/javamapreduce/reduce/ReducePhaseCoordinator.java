@@ -62,7 +62,7 @@ public class ReducePhaseCoordinator {
                 if (result.failedPartitions().isEmpty()) {
                     LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                             "Reduce phase completed successfully");
-                    return new ReducePhaseResult(result.processedCount());
+                    return new ReducePhaseResult(result.processedPartitions());
                 }
 
                 LoggingUtil.logInfo(LOGGER, processingId, getClass(),
@@ -77,7 +77,7 @@ public class ReducePhaseCoordinator {
         }
     }
 
-    private record ProcessingResult(int processedCount, List<Integer> failedPartitions) {
+    private record ProcessingResult(List<Integer> processedPartitions, List<Integer> failedPartitions) {
     }
 
     private ProcessingResult processPartitions(List<Integer> partitionsToProcess,
@@ -115,7 +115,7 @@ public class ReducePhaseCoordinator {
             }
         }
 
-        int processedPartitions = 0;
+        var processedPartitions = new ArrayList<Integer>();
         var failedPartitions = new ArrayList<Integer>();
 
         for (var i = 0; i < futures.size(); i++) {
@@ -124,7 +124,7 @@ public class ReducePhaseCoordinator {
                 if (!result.isSuccess()) {
                     failedPartitions.add(partitionsToProcess.get(i));
                 } else {
-                    processedPartitions++;
+                    processedPartitions.add(partitionsToProcess.get(i));
                 }
             } catch (Exception e) {
                 LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Error executing reduce task", e);

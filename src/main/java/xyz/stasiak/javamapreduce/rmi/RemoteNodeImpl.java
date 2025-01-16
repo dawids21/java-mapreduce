@@ -48,7 +48,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     parameters.inputDirectory());
             var processingState = ProcessingState
                     .create(processingId, activeNodes)
-                    .updateFileAssignments(fileAssignments);
+                    .setFileAssignments(fileAssignments);
             processingStates.put(processingId, processingState);
 
             var masterNode = Application.getNodeAddress();
@@ -153,11 +153,12 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void remoteFinishMapPhase(int processingId, String node, int processedFiles) throws RemoteException {
+    public void remoteFinishMapPhase(int processingId, String node, List<String> processedFiles)
+            throws RemoteException {
         finishMapPhase(processingId, node, processedFiles);
     }
 
-    private void finishMapPhase(int processingId, String node, int processedFiles) {
+    private void finishMapPhase(int processingId, String node, List<String> processedFiles) {
         CompletableFuture.runAsync(() -> {
             processingStates.compute(processingId,
                     (_, processingState) -> {
@@ -176,7 +177,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                             var activeNodes = processingState.activeNodes();
                             var partitionAssignments = workDistributor.distributePartitions(
                                     processingId, activeNodes);
-                            newState = newState.updatePartitionAssignments(partitionAssignments)
+                            newState = newState.setPartitionAssignments(partitionAssignments)
                                     .updateStatus(ProcessingStatus.REDUCING);
                             newState.activeNodes().forEach(activeNode -> {
                                 var partitions = partitionAssignments.get(activeNode);
@@ -259,12 +260,12 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void remoteFinishReducePhase(int processingId, String node, int processedPartitions)
+    public void remoteFinishReducePhase(int processingId, String node, List<Integer> processedPartitions)
             throws RemoteException {
         finishReducePhase(processingId, node, processedPartitions);
     }
 
-    private void finishReducePhase(int processingId, String node, int processedPartitions) {
+    private void finishReducePhase(int processingId, String node, List<Integer> processedPartitions) {
         CompletableFuture.runAsync(() -> {
             processingStates.compute(processingId,
                     (_, processingState) -> {

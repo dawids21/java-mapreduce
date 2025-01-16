@@ -48,7 +48,9 @@ public class MapPhaseCoordinator {
                 if (result.failedFiles().isEmpty()) {
                     LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                             "Map phase completed successfully");
-                    return new MapPhaseResult(result.processedCount());
+                    return new MapPhaseResult(result.processedFiles().stream()
+                            .map(f -> f.getFileName().toString())
+                            .toList());
                 }
 
                 LoggingUtil.logInfo(LOGGER, processingId, getClass(),
@@ -63,7 +65,7 @@ public class MapPhaseCoordinator {
         }
     }
 
-    private record ProcessingResult(int processedCount, List<Path> failedFiles) {
+    private record ProcessingResult(List<Path> processedFiles, List<Path> failedFiles) {
     }
 
     private ProcessingResult processFiles(List<Path> filesToProcess) {
@@ -91,7 +93,7 @@ public class MapPhaseCoordinator {
             }));
         }
 
-        int processedFiles = 0;
+        var processedFiles = new ArrayList<Path>();
         var failedFiles = new ArrayList<Path>();
 
         for (var i = 0; i < futures.size(); i++) {
@@ -100,7 +102,7 @@ public class MapPhaseCoordinator {
                 if (!result.isSuccess()) {
                     failedFiles.add(filesToProcess.get(i));
                 } else {
-                    processedFiles++;
+                    processedFiles.add(filesToProcess.get(i));
                 }
             } catch (Exception e) {
                 LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Error executing map task", e);

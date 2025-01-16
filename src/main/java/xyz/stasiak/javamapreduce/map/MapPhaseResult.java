@@ -1,4 +1,6 @@
 package xyz.stasiak.javamapreduce.map;
 
-public record MapPhaseResult(int processedFiles) {
+import java.util.List;
+
+public record MapPhaseResult(List<String> processedFiles) {
 }

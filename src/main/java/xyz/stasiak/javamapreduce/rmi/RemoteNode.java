@@ -12,11 +12,11 @@ public interface RemoteNode extends Remote {
 
     void remoteStartMapPhase(int processingId, List<String> files) throws RemoteException;
 
-    void remoteFinishMapPhase(int processingId, String node, int processedFiles) throws RemoteException;
+    void remoteFinishMapPhase(int processingId, String node, List<String> processedFiles) throws RemoteException;
 
     void remoteStartReducePhase(int processingId, List<Integer> partitions) throws RemoteException;
 
-    void remoteFinishReducePhase(int processingId, String node, int processedPartitions) throws RemoteException;
+    void remoteFinishReducePhase(int processingId, String node, List<Integer> processedPartitions) throws RemoteException;
 
     void remoteHandleNodeFailure(int processingId, String failedNode) throws RemoteException;
 

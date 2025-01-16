@@ -1,4 +1,6 @@
 package xyz.stasiak.javamapreduce.reduce;
 
-public record ReducePhaseResult(int processedPartitions) {
+import java.util.List;
+
+public record ReducePhaseResult(List<Integer> processedPartitions) {
 }
