@@ -411,6 +411,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     public ProcessingStatus getProcessingStatus(int processingId) {
+        if (!processingStates.containsKey(processingId)) {
+            return ProcessingStatus.NOT_FOUND;
+        }
         return processingStates.get(processingId).status();
     }
 

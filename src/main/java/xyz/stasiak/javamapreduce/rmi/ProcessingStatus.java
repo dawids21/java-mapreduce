@@ -1,6 +1,7 @@
 package xyz.stasiak.javamapreduce.rmi;
 
 public enum ProcessingStatus {
+    NOT_FOUND,
     NOT_STARTED,
     MAPPING,
     MAPPING_FAILED,
