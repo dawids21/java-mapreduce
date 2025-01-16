@@ -74,19 +74,17 @@ record ProcessingState(
         return processedPartitions == totalPartitions;
     }
 
-    NodeRemovalResult removeNode(String node) {
+    ProcessingState removeNode(String node) {
         var newActiveNodes = new ArrayList<>(activeNodes);
-        var success = newActiveNodes.remove(node);
-        return new NodeRemovalResult(
-                new ProcessingState(
-                        processingId,
-                        newActiveNodes,
-                        status,
-                        fileAssignments,
-                        partitionAssignments,
-                        processedFiles,
-                        processedPartitions),
-                success);
+        newActiveNodes.remove(node);
+        return new ProcessingState(
+                processingId,
+                newActiveNodes,
+                status,
+                fileAssignments,
+                partitionAssignments,
+                processedFiles,
+                processedPartitions);
     }
 
     ProcessingState updateFileAssignments(Map<String, List<String>> fileAssignments) {
@@ -141,8 +139,5 @@ record ProcessingState(
                 newPartitionAssignments,
                 processedFiles,
                 processedPartitions);
-    }
-
-    record NodeRemovalResult(ProcessingState newState, boolean success) {
     }
 }
