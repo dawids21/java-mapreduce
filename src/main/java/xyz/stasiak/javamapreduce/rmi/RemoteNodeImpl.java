@@ -55,48 +55,39 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             var masterNode = Application.getNodeAddress();
 
             activeNodes.forEach(node -> {
-                try {
-                    var files = processingState.fileAssignments().get(node);
-                    if (node.equals(masterNode)) {
-                        startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
-                        startMapPhase(processingId, files);
-                        processingStates.compute(processingId,
-                                (_, state) -> state.updateStatus(ProcessingStatus.MAPPING));
-                    } else {
+                var files = processingState.fileAssignments().get(node);
+                if (node.equals(masterNode)) {
+                    startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
+                    startMapPhase(processingId, files);
+                    processingStates.compute(processingId,
+                            (_, state) -> state.updateStatus(ProcessingStatus.MAPPING));
+                } else {
+                    try {
                         var remoteNode = RmiUtil.getRemoteNode(node);
-                        remoteNode.startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
-                        remoteNode.startMapPhase(processingId, files);
+                        remoteNode.remoteStartNodeProcessing(processingId, parameters, partitionFunction, masterNode);
+                        remoteNode.remoteStartMapPhase(processingId, files);
+                    } catch (RemoteException | RemoteNodeUnavailableException e) {
+                        LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                "Failed to start map phase on %s".formatted(node), e);
+                        handleNodeFailure(processingId, node);
                     }
-                    // } catch (RemoteException e) {
-                    // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                    // "Failed to map phase on %s".formatted(node), e);
-                    // throw new CompletionException(e);
-                    // // TODO handle failure, node may be dead, maybe repackage in
-                    // ProcessingException
-                    // } catch (ProcessingException e) {
-                    // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                    // "Failed to map phase on %s".formatted(node), e);
-                    // throw new CompletionException(e);
-                    // // TODO handle failure stop if master node, redistribute if not, probably in
-                    // exceptionally block
-                } catch (Exception e) {
-                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                            "Failed to map phase on %s".formatted(node), e);
-                    throw new CompletionException(e);
-                    // TODO handle failure, node may be dead, this probably in exceptionally block
-                    // too
                 }
             });
         })
                 .exceptionally(e -> {
-                    // TODO handle failure, node may be dead, this probably in exceptionally block
+                    // TODO handle whole processing failure
                     return null;
                 });
     }
 
     @Override
-    public void startNodeProcessing(int processingId, ProcessingParameters parameters,
+    public void remoteStartNodeProcessing(int processingId, ProcessingParameters parameters,
             Function<String, Integer> partitionFunction, String masterNode) throws RemoteException {
+        startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
+    }
+
+    private void startNodeProcessing(int processingId, ProcessingParameters parameters,
+            Function<String, Integer> partitionFunction, String masterNode) {
         LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                 "Starting node processing");
         try {
@@ -111,7 +102,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void startMapPhase(int processingId, List<String> files) throws RemoteException {
+    public void remoteStartMapPhase(int processingId, List<String> files) throws RemoteException {
+        startMapPhase(processingId, files);
+    }
+
+    private void startMapPhase(int processingId, List<String> files) {
         CompletableFuture.runAsync(() -> {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Starting map phase");
@@ -141,7 +136,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     } else {
                         try {
                             var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                            remoteNode.handleNodeFailure(processingId, nodeAddress);
+                            remoteNode.remoteHandleNodeFailure(processingId, nodeAddress);
                             cleanup(processingId);
                         } catch (RemoteException | RemoteNodeUnavailableException e2) {
                             // TODO master unavailable, handle
@@ -178,34 +173,20 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 });
 
                 updatedState.activeNodes().forEach(activeNode -> {
-                    try {
-                        var partitions = updatedState.partitionAssignments().get(activeNode);
-                        if (activeNode.equals(Application.getNodeAddress())) {
-                            startReducePhase(processingId, partitions);
-                            processingStates.compute(processingId,
-                                    (_, processingState) -> processingState.updateStatus(ProcessingStatus.REDUCING));
-                        } else {
+                    var partitions = updatedState.partitionAssignments().get(activeNode);
+                    if (activeNode.equals(Application.getNodeAddress())) {
+                        startReducePhase(processingId, partitions);
+                        processingStates.compute(processingId,
+                                (_, processingState) -> processingState.updateStatus(ProcessingStatus.REDUCING));
+                    } else {
+                        try {
                             var remoteNode = RmiUtil.getRemoteNode(activeNode);
-                            remoteNode.startReducePhase(processingId, partitions);
+                            remoteNode.remoteStartReducePhase(processingId, partitions);
+                        } catch (RemoteException | RemoteNodeUnavailableException e) {
+                            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                    "Failed to start reduce phase on %s".formatted(node), e);
+                            handleNodeFailure(processingId, activeNode);
                         }
-                        // } catch (RemoteException e) {
-                        // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        // "Failed to map phase on %s".formatted(node), e);
-                        // throw new CompletionException(e);
-                        // // TODO handle failure, node may be dead, maybe repackage in
-                        // ProcessingException
-                        // } catch (ProcessingException e) {
-                        // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        // "Failed to map phase on %s".formatted(node), e);
-                        // throw new CompletionException(e);
-                        // // TODO handle failure stop if master node, redistribute if not, probably in
-                        // exceptionally block
-                    } catch (Exception e) {
-                        LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                                "Failed to map phase on %s".formatted(node), e);
-                        throw new CompletionException(e);
-                        // TODO handle failure, node may be dead, this probably in exceptionally block
-                        // too
                     }
                 });
             }
@@ -218,8 +199,12 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void startReducePhase(int processingId, List<Integer> partitions)
+    public void remoteStartReducePhase(int processingId, List<Integer> partitions)
             throws RemoteException {
+        startReducePhase(processingId, partitions);
+    }
+
+    private void startReducePhase(int processingId, List<Integer> partitions) {
         CompletableFuture.runAsync(() -> {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Starting reduce phase");
@@ -253,7 +238,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     } else {
                         try {
                             var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                            remoteNode.handleNodeFailure(processingId, nodeAddress);
+                            remoteNode.remoteHandleNodeFailure(processingId, nodeAddress);
                             cleanup(processingId);
                         } catch (RemoteException | RemoteNodeUnavailableException e2) {
                             // TODO master unavailable, handle
@@ -312,7 +297,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     @Override
-    public void handleNodeFailure(int processingId, String failedNode) throws RemoteException {
+    public void remoteHandleNodeFailure(int processingId, String failedNode) throws RemoteException {
+        handleNodeFailure(processingId, failedNode);
+    }
+
+    private void handleNodeFailure(int processingId, String failedNode) {
         CompletableFuture.runAsync(() -> {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Node %s failed".formatted(failedNode));
@@ -336,32 +325,18 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         (_, processingState) -> processingState.updateFileAssignments(redistributedFileAssignments)
                                 .removeNodeAssignments(failedNode));
                 redistributedState.activeNodes().forEach(node -> {
-                    try {
-                        var files = redistributedFileAssignments.get(node);
-                        if (node.equals(Application.getNodeAddress())) {
-                            startMapPhase(processingId, files);
-                        } else {
+                    var files = redistributedFileAssignments.get(node); // TODO nie wszystkie node musza miec cos nowego
+                    if (node.equals(Application.getNodeAddress())) {
+                        startMapPhase(processingId, files);
+                    } else {
+                        try {
                             var remoteNode = RmiUtil.getRemoteNode(node);
-                            remoteNode.startMapPhase(processingId, files);
+                            remoteNode.remoteStartMapPhase(processingId, files);
+                        } catch (RemoteException | RemoteNodeUnavailableException e) {
+                            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                    "Failed to start map phase on %s".formatted(node), e);
+                            handleNodeFailure(processingId, node);
                         }
-                        // } catch (RemoteException e) {
-                        // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        // "Failed to map phase on %s".formatted(node), e);
-                        // throw new CompletionException(e);
-                        // // TODO handle failure, node may be dead, maybe repackage in
-                        // ProcessingException
-                        // } catch (ProcessingException e) {
-                        // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        // "Failed to map phase on %s".formatted(node), e);
-                        // throw new CompletionException(e);
-                        // // TODO handle failure stop if master node, redistribute if not, probably in
-                        // exceptionally block
-                    } catch (Exception e) {
-                        LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                                "Failed to map phase on %s".formatted(node), e);
-                        throw new CompletionException(e);
-                        // TODO handle failure, node may be dead, this probably in exceptionally block
-                        // too
                     }
                 });
             } else if (!updatedState.isReducePhaseCompleted()) {
@@ -373,36 +348,26 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                 .updatePartitionAssignments(redistributedPartitionAssignments)
                                 .removeNodeAssignments(failedNode));
                 redistributedState.activeNodes().forEach(node -> {
-                    try {
-                        var partitions = redistributedPartitionAssignments.get(node);
-                        if (node.equals(Application.getNodeAddress())) {
-                            startReducePhase(processingId, partitions);
-                        } else {
+                    var partitions = redistributedPartitionAssignments.get(node);
+                    if (node.equals(Application.getNodeAddress())) {
+                        startReducePhase(processingId, partitions);
+                    } else {
+                        try {
                             var remoteNode = RmiUtil.getRemoteNode(node);
-                            remoteNode.startReducePhase(processingId, partitions);
+                            remoteNode.remoteStartReducePhase(processingId, partitions);
+                        } catch (RemoteException | RemoteNodeUnavailableException e) {
+                            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                    "Failed to start reduce phase on %s".formatted(node), e);
+                            handleNodeFailure(processingId, node);
                         }
-                        // } catch (RemoteException e) {
-                        // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        // "Failed to map phase on %s".formatted(node), e);
-                        // throw new CompletionException(e);
-                        // // TODO handle failure, node may be dead, maybe repackage in
-                        // ProcessingException
-                        // } catch (ProcessingException e) {
-                        // LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        // "Failed to map phase on %s".formatted(node), e);
-                        // throw new CompletionException(e);
-                        // // TODO handle failure stop if master node, redistribute if not, probably in
-                        // exceptionally block
-                    } catch (Exception e) {
-                        LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                                "Failed to map phase on %s".formatted(node), e);
-                        throw new CompletionException(e);
-                        // TODO handle failure, node may be dead, this probably in exceptionally block
-                        // too
                     }
                 });
             }
-        });
+        })
+                .exceptionally(e ->
+                // e has type CompletionException
+                // TODO handle failure in starting reduce phase on master
+                null);
     }
 
     @Override
@@ -413,9 +378,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     "Processing completed successfully");
         })
                 .exceptionally(e -> {
-                    // e has type CompletionException
-                    // TODO handle failure in starting reduce phase on master
-                    throw new CompletionException(e);
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to finish processing gracefully", e);
+                    return null;
                 });
     }
 
