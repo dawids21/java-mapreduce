@@ -448,6 +448,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     private void cleanup(int processingId) {
         CompletableFuture.runAsync(() -> {
+            if (!processingInfos.containsKey(processingId)) {
+                return;
+            }
             var processingInfo = processingInfos.remove(processingId);
             var nodeAddress = Application.getNodeAddress();
             if (nodeAddress.equals(processingInfo.masterNode())) {
