@@ -169,4 +169,31 @@ record ProcessingState(
                 remainingFiles,
                 remainingPartitions);
     }
+
+    ProcessingState fail() {
+        if (status == ProcessingStatus.MAPPING) {
+            return new ProcessingState(
+                    processingId,
+                    activeNodes,
+                    ProcessingStatus.MAPPING_FAILED,
+                    fileAssignments,
+                    partitionAssignments,
+                    remainingFiles,
+                    remainingPartitions);
+        } else if (status == ProcessingStatus.REDUCING) {
+            return new ProcessingState(
+                    processingId,
+                    activeNodes,
+                    ProcessingStatus.REDUCING_FAILED,
+                    fileAssignments,
+                    partitionAssignments,
+                    remainingFiles,
+                    remainingPartitions);
+        }
+        return this;
+    }
+
+    boolean isFailed() {
+        return status == ProcessingStatus.MAPPING_FAILED || status == ProcessingStatus.REDUCING_FAILED;
+    }
 }

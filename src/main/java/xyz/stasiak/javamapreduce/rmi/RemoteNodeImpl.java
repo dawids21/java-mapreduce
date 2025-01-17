@@ -6,7 +6,6 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.logging.Logger;
@@ -112,6 +111,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Starting map phase");
             var processingInfo = processingInfos.get(processingId);
+            if (processingInfo == null) {
+                LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                        "Processing cancelled");
+                return;
+            }
             var coordinator = new MapPhaseCoordinator(processingId, processingInfo.parameters().mapperClassName(),
                     processingInfo.parameters().inputDirectory(), files, processingInfo.partitionFunction());
             var result = coordinator.execute();
@@ -137,7 +141,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     var masterNode = processingInfo.masterNode();
                     var nodeAddress = Application.getNodeAddress();
                     if (masterNode.equals(nodeAddress)) {
-                        // TODO cancel processing on other nodes
+                        failProcessing(processingId);
                     } else {
                         cleanup(processingId);
                         try {
@@ -162,6 +166,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         CompletableFuture.runAsync(() -> {
             processingStates.compute(processingId,
                     (_, processingState) -> {
+                        if (processingState.isFailed()) {
+                            return processingState;
+                        }
                         var newState = processingState.addProcessedFiles(processedFiles);
                         if (newState.isMapPhaseCompleted()) {
                             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
@@ -199,9 +206,10 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     });
         })
                 .exceptionally(e -> {
-                    // e has type CompletionException
-                    // TODO handle failure in starting reduce phase on master
-                    throw new CompletionException(e);
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to finish map phase and start reduce phase", e);
+                    failProcessing(processingId);
+                    return null;
                 });
     }
 
@@ -216,6 +224,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Starting reduce phase");
             var processingInfo = processingInfos.get(processingId);
+            if (processingInfo == null) {
+                LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                        "Processing cancelled");
+                return;
+            }
             var coordinator = new ReducePhaseCoordinator(
                     processingId,
                     processingInfo.parameters().reducerClassName(),
@@ -244,7 +257,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     var masterNode = processingInfo.masterNode();
                     var nodeAddress = Application.getNodeAddress();
                     if (masterNode.equals(nodeAddress)) {
-                        // TODO cancel processing on other nodes
+                        failProcessing(processingId);
                     } else {
                         cleanup(processingId);
                         try {
@@ -269,6 +282,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         CompletableFuture.runAsync(() -> {
             processingStates.compute(processingId,
                     (_, processingState) -> {
+                        if (processingState.isFailed()) {
+                            return processingState;
+                        }
                         var newState = processingState.addProcessedPartitions(processedPartitions);
                         if (newState.isReducePhaseCompleted()) {
                             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
@@ -293,7 +309,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
         })
                 .exceptionally(e -> {
-                    // TODO
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to finish reduce phase", e);
+                    failProcessing(processingId);
                     return null;
                 });
     }
@@ -309,6 +327,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     "Node %s failed".formatted(failedNode));
             processingStates.computeIfPresent(processingId,
                     (_, processingState) -> {
+                        if (processingState.isFailed()) {
+                            return processingState;
+                        }
                         if (processingState.activeNodes().contains(failedNode)) {
                             var newState = processingState.removeNode(failedNode);
                             if (!newState.isMapPhaseCompleted()) {
@@ -358,10 +379,12 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         return processingState;
                     });
         })
-                .exceptionally(e ->
-                // e has type CompletionException
-                // TODO handle failure in starting reduce phase on master
-                null);
+                .exceptionally(e -> {
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to handle node failure", e);
+                    failProcessing(processingId);
+                    return null;
+                });
     }
 
     @Override
@@ -382,27 +405,52 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 });
     }
 
-    private void cleanup(int processingId) {
-        var processingInfo = processingInfos.remove(processingId);
-        var nodeAddress = Application.getNodeAddress();
-        if (nodeAddress.equals(processingInfo.masterNode())) {
-            try {
-                FilesUtil.removePublicDirectories(processingId);
-            } catch (IOException e) {
-                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                        "Failed to remove public directories", e);
-            }
-        }
-        try {
-            FilesUtil.removeNodeDirectories(processingId);
-        } catch (IOException e) {
-            LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                    "Failed to remove node directories", e);
-        }
+    private void failProcessing(int processingId) {
+        LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                "Processing failed");
+        processingStates.compute(processingId, (_, processingState) -> {
+            var newState = processingState.fail();
+            newState.activeNodes().forEach(node -> {
+                if (node.equals(Application.getNodeAddress())) {
+                    cleanup(processingId);
+                } else {
+                    try {
+                        var remoteNode = RmiUtil.getRemoteNode(node);
+                        remoteNode.remoteCleanup(processingId);
+                    } catch (RemoteException | RemoteNodeUnavailableException e) {
+                        LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                "Failed to cleanup on %s".formatted(node), e);
+                    }
+                }
+            });
+            return newState;
+        });
     }
 
-    private void failProcessing(int processingId) {
-        // TODO
+    @Override
+    public void remoteCleanup(int processingId) throws RemoteException {
+        cleanup(processingId);
+    }
+
+    private void cleanup(int processingId) {
+        CompletableFuture.runAsync(() -> {
+            var processingInfo = processingInfos.remove(processingId);
+            var nodeAddress = Application.getNodeAddress();
+            if (nodeAddress.equals(processingInfo.masterNode())) {
+                try {
+                    FilesUtil.removePublicDirectories(processingId);
+                } catch (IOException e) {
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Failed to remove public directories", e);
+                }
+            }
+            try {
+                FilesUtil.removeNodeDirectories(processingId);
+            } catch (IOException e) {
+                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                        "Failed to remove node directories", e);
+            }
+        });
     }
 
     @Override

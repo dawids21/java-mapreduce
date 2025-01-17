@@ -25,4 +25,6 @@ public interface RemoteNode extends Remote {
     int getProcessingPower() throws RemoteException;
 
     void isAlive() throws RemoteException;
+
+    void remoteCleanup(int processingId) throws RemoteException;
 }
