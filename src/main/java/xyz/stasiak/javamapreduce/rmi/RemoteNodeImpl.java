@@ -167,6 +167,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             processingStates.compute(processingId,
                     (_, processingState) -> {
                         if (processingState.isFailed()) {
+                            try {
+                                var remoteNode = RmiUtil.getRemoteNode(node);
+                                remoteNode.remoteCleanup(processingId);
+                            } catch (RemoteException | RemoteNodeUnavailableException e) {
+                                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                        "Failed to cleanup on %s".formatted(node), e);
+                            }
                             return processingState;
                         }
                         var newState = processingState.addProcessedFiles(processedFiles);
@@ -283,6 +290,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             processingStates.compute(processingId,
                     (_, processingState) -> {
                         if (processingState.isFailed()) {
+                            try {
+                                var remoteNode = RmiUtil.getRemoteNode(node);
+                                remoteNode.remoteCleanup(processingId);
+                            } catch (RemoteException | RemoteNodeUnavailableException e) {
+                                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                        "Failed to cleanup on %s".formatted(node), e);
+                            }
                             return processingState;
                         }
                         var newState = processingState.addProcessedPartitions(processedPartitions);
