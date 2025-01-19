@@ -75,6 +75,7 @@ public class Application {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 if (remoteNode != null) {
+                    remoteNode.shutdownExecutor();
                     rmiRegistry.unbind("node");
                     LoggingUtil.logInfo(LOGGER, Application.class, "RemoteNode unbound from registry");
                 }
@@ -95,7 +96,7 @@ public class Application {
     public static String getPublicDirectory() {
         return getProperty("public.directory");
     }
-    
+
     public static String getRmiPort() {
         return getProperty("rmi.port");
     }

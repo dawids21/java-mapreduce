@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
@@ -23,6 +25,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     private final Map<Integer, ProcessingState> processingStates;
     private final Map<Integer, ProcessingInfo> processingInfos;
     private final WorkDistributor workDistributor = new WorkDistributor();
+    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
 
     public RemoteNodeImpl() throws RemoteException {
         super();
@@ -71,7 +74,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     }
                 }
             });
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to start processing", e);
@@ -133,7 +136,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     cleanup(processingId);
                 }
             }
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Map phase failed", e);
@@ -211,7 +214,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         }
                         return newState;
                     });
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish map phase and start reduce phase", e);
@@ -256,7 +259,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     cleanup(processingId);
                 }
             }
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Reduce phase failed", e);
@@ -321,7 +324,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         return newState;
                     });
 
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish reduce phase", e);
@@ -392,7 +395,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         }
                         return processingState;
                     });
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to handle node failure", e);
@@ -411,7 +414,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             cleanup(processingId);
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Processing completed successfully");
-        })
+        }, executor)
                 .exceptionally(e -> {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish processing gracefully", e);
@@ -467,7 +470,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                         "Failed to remove node directories", e);
             }
-        });
+        }, executor);
     }
 
     @Override
@@ -484,5 +487,10 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     @Override
     public void isAlive() throws RemoteException {
+    }
+
+    public void shutdownExecutor() {
+        LoggingUtil.logInfo(LOGGER, getClass(), "Shutting down executor service");
+        executor.close();
     }
 }
