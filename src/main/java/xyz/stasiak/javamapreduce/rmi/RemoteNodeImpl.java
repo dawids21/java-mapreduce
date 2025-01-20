@@ -100,7 +100,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     "Failed to create directories", e);
             throw new ProcessingException("Failed to create directories", e);
         }
-        var processingInfo = new ProcessingInfo(processingId, parameters, masterNode, partitionFunction);
+        var processingInfo = ProcessingInfo.create(processingId, parameters, masterNode, partitionFunction);
         processingInfos.put(processingId, processingInfo);
     }
 
@@ -120,7 +120,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 return;
             }
             var coordinator = new MapPhaseCoordinator(processingId, processingInfo.parameters().mapperClassName(),
-                    processingInfo.parameters().inputDirectory(), files, processingInfo.partitionFunction());
+                    processingInfo.parameters().inputDirectory(), files, processingInfo.partitionFunction(),
+                    processingInfo.cancellationToken());
             var result = coordinator.execute();
             var nodeAddress = Application.getNodeAddress();
             var masterNode = processingInfo.masterNode();
@@ -239,11 +240,8 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         "Processing cancelled");
                 return;
             }
-            var coordinator = new ReducePhaseCoordinator(
-                    processingId,
-                    processingInfo.parameters().reducerClassName(),
-                    partitions,
-                    processingInfo.parameters().outputDirectory());
+            var coordinator = new ReducePhaseCoordinator(processingId, processingInfo.parameters().reducerClassName(),
+                    partitions, processingInfo.parameters().outputDirectory(), processingInfo.cancellationToken());
             var result = coordinator.execute();
             var nodeAddress = Application.getNodeAddress();
             var masterNode = processingInfo.masterNode();
@@ -455,6 +453,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 return;
             }
             var processingInfo = processingInfos.remove(processingId);
+
+            processingInfo.cancel();
+
             var nodeAddress = Application.getNodeAddress();
             if (nodeAddress.equals(processingInfo.masterNode())) {
                 try {
@@ -463,7 +464,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to remove public directories", e);
                 }
+
             }
+
             try {
                 FilesUtil.removeNodeDirectories(processingId);
             } catch (IOException e) {

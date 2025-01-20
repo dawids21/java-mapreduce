@@ -12,6 +12,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.CancellationToken;
 import xyz.stasiak.javamapreduce.rmi.ProcessingException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
@@ -25,14 +26,16 @@ public class ReducePhaseCoordinator {
     private final List<Integer> partitions;
     private final Path outputDirectory;
     private final ExecutorService executor;
+    private final CancellationToken cancellationToken;
 
     public ReducePhaseCoordinator(int processingId, String reducerClassName, List<Integer> partitions,
-            String outputDirectory) {
+            String outputDirectory, CancellationToken cancellationToken) {
         this.processingId = processingId;
         this.reducerClassName = reducerClassName;
         this.partitions = partitions;
         this.outputDirectory = Path.of(outputDirectory);
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
+        this.cancellationToken = cancellationToken;
     }
 
     public ReducePhaseResult execute() {
@@ -41,6 +44,8 @@ public class ReducePhaseCoordinator {
 
         var attempt = 0;
         try {
+            cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
+
             var partitionFiles = new HashMap<Integer, List<Path>>();
             for (var partition : partitions) {
                 var partitionDirectory = FilesUtil.getPartitionDirectory(processingId, partition);
@@ -57,6 +62,8 @@ public class ReducePhaseCoordinator {
             }
 
             while (attempt <= MAX_RETRIES) {
+                cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
+
                 var result = processPartitions(partitions, partitionFiles);
 
                 if (result.failedPartitions().isEmpty()) {
@@ -82,11 +89,15 @@ public class ReducePhaseCoordinator {
 
     private ProcessingResult processPartitions(List<Integer> partitionsToProcess,
             Map<Integer, List<Path>> partitionFiles) {
+        cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
+
         var reducer = ReducerFactory.createReducer(reducerClassName);
         var futures = new ArrayList<Future<MergeReduceResult>>();
         var mergeFilesDirectory = FilesUtil.getMergeFilesDirectory(processingId);
 
         for (var partitionId : partitionsToProcess) {
+            cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
+
             var partitionDirectory = FilesUtil.getPartitionDirectory(processingId, partitionId);
             var inputFiles = partitionFiles.get(partitionId);
             var inputPaths = inputFiles.stream()
@@ -94,11 +105,11 @@ public class ReducePhaseCoordinator {
                     .toList();
 
             if (!inputFiles.isEmpty()) {
-                var mergeTask = MergeTask.create(processingId, partitionId, inputPaths, mergeFilesDirectory);
+                var mergeTask = MergeTask.create(processingId, partitionId, inputPaths, mergeFilesDirectory, cancellationToken);
                 var mergeTaskExecutor = new MergeTaskExecutor(mergeTask);
                 var reduceTask = ReduceTask.create(processingId,
                         mergeFilesDirectory.resolve(String.valueOf(partitionId)),
-                        outputDirectory, reducer);
+                        outputDirectory, reducer, cancellationToken);
                 var reduceTaskExecutor = new ReduceTaskExecutor(reduceTask);
 
                 futures.add(executor.submit(() -> {

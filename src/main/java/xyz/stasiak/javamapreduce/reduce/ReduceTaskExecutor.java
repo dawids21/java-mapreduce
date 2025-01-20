@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class ReduceTaskExecutor {
@@ -24,11 +25,16 @@ class ReduceTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
+                currentTask.cancellationToken().throwIfCancelled(currentTask.processingId(), "Reduce task cancelled");
                 LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
                         "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = currentTask.outputDirectory().resolve(currentTask.inputFile().getFileName());
                 processFile(currentTask.inputFile(), outputFile);
                 result = ReduceResult.success(outputFile);
+                break;
+            } catch (ProcessingCancelledException e) {
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(), "Reduce task cancelled");
+                result = ReduceResult.failure(e);
                 break;
             } catch (Exception e) {
                 LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
@@ -55,6 +61,7 @@ class ReduceTaskExecutor {
         String line;
 
         while ((line = reader.readLine()) != null) {
+            task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
             var parts = line.split("\t");
             var key = parts[0];
             var value = parts[1];
@@ -65,6 +72,7 @@ class ReduceTaskExecutor {
             } else if (key.equals(currentKey)) {
                 currentValues.add(value);
             } else {
+                task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
                 writeResult(writer, currentKey, currentValues);
                 currentKey = key;
                 currentValues.clear();
@@ -73,6 +81,7 @@ class ReduceTaskExecutor {
         }
 
         if (currentKey != null) {
+            task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
             writeResult(writer, currentKey, currentValues);
         }
     }

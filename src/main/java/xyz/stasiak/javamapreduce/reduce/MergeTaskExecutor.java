@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class MergeTaskExecutor {
@@ -35,6 +36,7 @@ class MergeTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
+                currentTask.cancellationToken().throwIfCancelled(currentTask.processingId(), "Merge task cancelled");
                 LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
                         "Merging partition: %d".formatted(currentTask.partitionId()));
 
@@ -44,6 +46,10 @@ class MergeTaskExecutor {
                 mergeFiles(currentTask.inputFiles(), outputFile);
 
                 result = MergeResult.success(outputFile);
+                break;
+            } catch (ProcessingCancelledException e) {
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(), "Merge task cancelled");
+                result = MergeResult.failure(e);
                 break;
             } catch (Exception e) {
                 LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
@@ -69,6 +75,7 @@ class MergeTaskExecutor {
     private List<FileHandle> openInputFiles(List<Path> inputFiles) throws IOException {
         var handles = new ArrayList<FileHandle>();
         for (var file : inputFiles) {
+            task.cancellationToken().throwIfCancelled(task.processingId(), "Merge task cancelled");
             var reader = Files.newBufferedReader(file);
             var line = reader.readLine();
             if (line != null) {
@@ -83,6 +90,7 @@ class MergeTaskExecutor {
     private void mergeFileHandles(List<FileHandle> fileHandles, BufferedWriter writer) throws IOException {
         int finishedFiles = 0;
         while (finishedFiles < fileHandles.size()) {
+            task.cancellationToken().throwIfCancelled(task.processingId(), "Merge task cancelled");
             var minHandle = findMinimumLine(fileHandles);
             writer.write(minHandle.currentLine);
             writer.newLine();

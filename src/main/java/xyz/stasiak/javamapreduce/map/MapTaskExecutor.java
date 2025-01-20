@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
@@ -23,12 +24,17 @@ class MapTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
+                currentTask.cancellationToken().throwIfCancelled(currentTask.processingId(), "Map task cancelled");
                 LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
                         "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = FilesUtil.getMapFilesDirectory(currentTask.processingId())
                         .resolve(currentTask.inputFile().getFileName());
                 processFile(currentTask.inputFile(), outputFile);
                 result = MapResult.success(outputFile);
+                break;
+            } catch (ProcessingCancelledException e) {
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(), "Map task cancelled");
+                result = MapResult.failure(e);
                 break;
             } catch (Exception e) {
                 LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
@@ -47,6 +53,8 @@ class MapTaskExecutor {
                 var writer = Files.newBufferedWriter(outputFile)) {
             String line;
             while ((line = reader.readLine()) != null) {
+                task.cancellationToken().throwIfCancelled(task.processingId(),
+                        "Map task cancelled");
                 processLine(line, writer);
             }
         }

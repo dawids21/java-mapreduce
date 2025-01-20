@@ -8,6 +8,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 record KeyValuePair(String key, String value) implements Comparable<KeyValuePair> {
@@ -31,10 +32,16 @@ class PartitionTaskExecutor {
 
         while (currentTask.canRetry()) {
             try {
+                currentTask.cancellationToken().throwIfCancelled(currentTask.processingId(),
+                        "Partition task cancelled");
                 LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
                         "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFiles = processFile(currentTask.inputFile());
                 result = PartitionResult.success(outputFiles);
+                break;
+            } catch (ProcessingCancelledException e) {
+                LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(), "Partition task cancelled");
+                result = PartitionResult.failure(e);
                 break;
             } catch (Exception e) {
                 LoggingUtil.logWarning(LOGGER, currentTask.processingId(), getClass(),
@@ -55,6 +62,7 @@ class PartitionTaskExecutor {
         try (var reader = Files.newBufferedReader(inputFile)) {
             String line;
             while ((line = reader.readLine()) != null) {
+                task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
                 line = line.trim();
                 var parts = line.split("\t");
 
@@ -68,6 +76,7 @@ class PartitionTaskExecutor {
         }
 
         for (var entry : partitions.entrySet()) {
+            task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
             var partition = entry.getKey();
             var pairs = entry.getValue();
             pairs.sort(KeyValuePair::compareTo);
@@ -75,6 +84,7 @@ class PartitionTaskExecutor {
             var outputFile = task.outputDirectory().resolve("%d/%s".formatted(partition, inputFile.getFileName()));
             try (var writer = Files.newBufferedWriter(outputFile)) {
                 for (var pair : pairs) {
+                    task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
                     writer.write("%s\t%s%n".formatted(pair.key(), pair.value()));
                 }
             }

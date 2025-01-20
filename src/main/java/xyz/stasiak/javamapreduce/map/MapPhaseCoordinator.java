@@ -9,6 +9,7 @@ import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.rmi.CancellationToken;
 import xyz.stasiak.javamapreduce.rmi.ProcessingException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
@@ -22,9 +23,10 @@ public class MapPhaseCoordinator {
     private final List<Path> files;
     private final Function<String, Integer> partitionFunction;
     private final ExecutorService executor;
+    private final CancellationToken cancellationToken;
 
     public MapPhaseCoordinator(int processingId, String mapperClassName, String inputDirectory, List<String> files,
-            Function<String, Integer> partitionFunction) {
+            Function<String, Integer> partitionFunction, CancellationToken cancellationToken) {
         this.processingId = processingId;
         this.mapperClassName = mapperClassName;
         this.inputDirectory = Path.of(inputDirectory);
@@ -33,6 +35,7 @@ public class MapPhaseCoordinator {
                 .toList();
         this.partitionFunction = partitionFunction;
         this.executor = Executors.newVirtualThreadPerTaskExecutor();
+        this.cancellationToken = cancellationToken;
     }
 
     public MapPhaseResult execute() {
@@ -43,6 +46,8 @@ public class MapPhaseCoordinator {
 
         try {
             while (attempt <= MAX_RETRIES) {
+                cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
+
                 var result = processFiles(files);
 
                 if (result.failedFiles().isEmpty()) {
@@ -69,16 +74,20 @@ public class MapPhaseCoordinator {
     }
 
     private ProcessingResult processFiles(List<Path> filesToProcess) {
+        cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
+
         var mapper = MapperFactory.createMapper(mapperClassName);
         var mapFilesDirectory = FilesUtil.getMapFilesDirectory(processingId);
         var partitionFilesDirectory = FilesUtil.getPartitionFilesDirectory(processingId);
         var futures = new ArrayList<Future<MapPartitionResult>>();
 
         for (var file : filesToProcess) {
-            var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper);
+            cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
+
+            var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper, cancellationToken);
             var mapTaskExecutor = new MapTaskExecutor(mapTask);
             var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
-                    partitionFilesDirectory, partitionFunction);
+                    partitionFilesDirectory, partitionFunction, cancellationToken);
             var partitionTaskExecutor = new PartitionTaskExecutor(partitionTask);
             futures.add(this.executor.submit(() -> {
                 var mapResult = mapTaskExecutor.execute();
