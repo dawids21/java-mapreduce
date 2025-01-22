@@ -11,6 +11,8 @@ public class ExampleMapper implements Mapper {
     @Override
     public List<MapperKeyValue> map(String input) {
         return Arrays.stream(input.split(" "))
+                .map(String::trim)
+                .filter(word -> !word.isEmpty())
                 .map(word -> new MapperKeyValue(word, "1"))
                 .toList();
     }

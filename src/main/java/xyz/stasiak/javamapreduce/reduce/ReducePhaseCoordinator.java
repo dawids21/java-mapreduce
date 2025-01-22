@@ -105,7 +105,8 @@ public class ReducePhaseCoordinator {
                     .toList();
 
             if (!inputFiles.isEmpty()) {
-                var mergeTask = MergeTask.create(processingId, partitionId, inputPaths, mergeFilesDirectory, cancellationToken);
+                var mergeTask = MergeTask.create(processingId, partitionId, inputPaths, mergeFilesDirectory,
+                        cancellationToken);
                 var mergeTaskExecutor = new MergeTaskExecutor(mergeTask);
                 var reduceTask = ReduceTask.create(processingId,
                         mergeFilesDirectory.resolve(String.valueOf(partitionId)),
@@ -133,6 +134,8 @@ public class ReducePhaseCoordinator {
             try {
                 var result = futures.get(i).get();
                 if (!result.isSuccess()) {
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Error processing partition: %s".formatted(partitionsToProcess.get(i)), result.error());
                     failedPartitions.add(partitionsToProcess.get(i));
                 } else {
                     processedPartitions.add(partitionsToProcess.get(i));

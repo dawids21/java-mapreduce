@@ -84,7 +84,8 @@ public class MapPhaseCoordinator {
         for (var file : filesToProcess) {
             cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
-            var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper, cancellationToken);
+            var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper,
+                    cancellationToken);
             var mapTaskExecutor = new MapTaskExecutor(mapTask);
             var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
                     partitionFilesDirectory, partitionFunction, cancellationToken);
@@ -109,6 +110,8 @@ public class MapPhaseCoordinator {
             try {
                 var result = futures.get(i).get();
                 if (!result.isSuccess()) {
+                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                            "Error processing file: %s".formatted(filesToProcess.get(i)), result.error());
                     failedFiles.add(filesToProcess.get(i));
                 } else {
                     processedFiles.add(filesToProcess.get(i));
