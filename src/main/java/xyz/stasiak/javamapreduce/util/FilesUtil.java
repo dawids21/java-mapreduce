@@ -13,18 +13,15 @@ import xyz.stasiak.javamapreduce.Application;
 
 public class FilesUtil {
     private static final Logger LOGGER = Logger.getLogger(FilesUtil.class.getName());
-    private static final String DEFAULT_NODE_DIRECTORY = "/tmp/java-mapreduce";
+    private static final String DEFAULT_NODE_DIRECTORY = Application.getNodeDirectory();
+    private static final String DEFAULT_PUBLIC_DIRECTORY = Application.getPublicDirectory();
 
     public static Path getBaseNodeDirectory(int processingId) {
         return Path.of(DEFAULT_NODE_DIRECTORY, String.valueOf(processingId));
     }
 
     public static Path getBasePublicDirectory(int processingId) {
-        var publicDirectory = Application.getPublicDirectory();
-        if (publicDirectory == null) {
-            throw new IllegalStateException("Public directory property not set in application.properties");
-        }
-        return Path.of(publicDirectory, String.valueOf(processingId));
+        return Path.of(DEFAULT_PUBLIC_DIRECTORY, String.valueOf(processingId));
     }
 
     public static Path getMapFilesDirectory(int processingId) {

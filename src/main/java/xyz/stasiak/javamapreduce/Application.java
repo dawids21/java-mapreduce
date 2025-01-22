@@ -93,6 +93,10 @@ public class Application {
         new Application();
     }
 
+    public static String getNodeDirectory() {
+        return getProperty("node.directory");
+    }
+
     public static String getPublicDirectory() {
         return getProperty("public.directory");
     }
@@ -116,6 +120,11 @@ public class Application {
     }
 
     private static String getProperty(String key) {
-        return System.getProperty(key, properties.getProperty(key));
+        var property = System.getProperty(key, properties.getProperty(key));
+        if (property == null) {
+            throw new IllegalStateException("Property %s not set in application.properties".formatted(key));
+        }
+        return property;
     }
 }
+

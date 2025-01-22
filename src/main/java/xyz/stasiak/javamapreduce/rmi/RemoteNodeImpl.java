@@ -21,6 +21,7 @@ import xyz.stasiak.javamapreduce.util.LoggingUtil;
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     private static final Logger LOGGER = Logger.getLogger(RemoteNodeImpl.class.getSimpleName());
+    private static final String NODE_ADDRESS = Application.getNodeAddress();
 
     private final Map<Integer, ProcessingState> processingStates;
     private final Map<Integer, ProcessingInfo> processingInfos;
@@ -53,19 +54,17 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     .setFileAssignments(fileAssignments);
             processingStates.put(processingId, processingState);
 
-            var masterNode = Application.getNodeAddress();
-
             activeNodes.forEach(node -> {
                 var files = processingState.fileAssignments().get(node);
-                if (node.equals(masterNode)) {
-                    startNodeProcessing(processingId, parameters, partitionFunction, masterNode);
+                if (node.equals(NODE_ADDRESS)) {
+                    startNodeProcessing(processingId, parameters, partitionFunction, NODE_ADDRESS);
                     processingStates.compute(processingId,
                             (_, state) -> state.updateStatus(ProcessingStatus.MAPPING));
                     startMapPhase(processingId, files);
                 } else {
                     try {
                         var remoteNode = RmiUtil.getRemoteNode(node);
-                        remoteNode.remoteStartNodeProcessing(processingId, parameters, partitionFunction, masterNode);
+                        remoteNode.remoteStartNodeProcessing(processingId, parameters, partitionFunction, NODE_ADDRESS);
                         remoteNode.remoteStartMapPhase(processingId, files);
                     } catch (RemoteException | RemoteNodeUnavailableException | ProcessingException e) {
                         LoggingUtil.logSevere(LOGGER, processingId, getClass(),
@@ -123,14 +122,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     processingInfo.parameters().inputDirectory(), files, processingInfo.partitionFunction(),
                     processingInfo.cancellationToken());
             var result = coordinator.execute();
-            var nodeAddress = Application.getNodeAddress();
             var masterNode = processingInfo.masterNode();
-            if (masterNode.equals(nodeAddress)) {
-                finishMapPhase(processingId, nodeAddress, result.processedFiles());
+            if (masterNode.equals(NODE_ADDRESS)) {
+                finishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
             } else {
                 try {
                     var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                    remoteNode.remoteFinishMapPhase(processingId, nodeAddress, result.processedFiles());
+                    remoteNode.remoteFinishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
                 } catch (RemoteException | RemoteNodeUnavailableException e) {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish map phase on %s, master node unavailable".formatted(masterNode), e);
@@ -143,14 +141,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                             "Map phase failed", e);
                     var processingInfo = processingInfos.get(processingId);
                     var masterNode = processingInfo.masterNode();
-                    var nodeAddress = Application.getNodeAddress();
-                    if (masterNode.equals(nodeAddress)) {
+                    if (masterNode.equals(NODE_ADDRESS)) {
                         failProcessing(processingId);
                     } else {
                         cleanup(processingId);
                         try {
                             var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                            remoteNode.remoteHandleNodeFailure(processingId, nodeAddress);
+                            remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
                         } catch (RemoteException | RemoteNodeUnavailableException e2) {
                             LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                     "Map phase failed on %s and master node unavailable".formatted(masterNode), e2);
@@ -199,7 +196,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                     .updateStatus(ProcessingStatus.REDUCING);
                             newState.activeNodes().forEach(activeNode -> {
                                 var partitions = partitionAssignments.get(activeNode);
-                                if (activeNode.equals(Application.getNodeAddress())) {
+                                if (activeNode.equals(NODE_ADDRESS)) {
                                     startReducePhase(processingId, partitions);
                                 } else {
                                     try {
@@ -243,14 +240,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             var coordinator = new ReducePhaseCoordinator(processingId, processingInfo.parameters().reducerClassName(),
                     partitions, processingInfo.parameters().outputDirectory(), processingInfo.cancellationToken());
             var result = coordinator.execute();
-            var nodeAddress = Application.getNodeAddress();
             var masterNode = processingInfo.masterNode();
-            if (masterNode.equals(nodeAddress)) {
-                finishReducePhase(processingId, nodeAddress, result.processedPartitions());
+            if (masterNode.equals(NODE_ADDRESS)) {
+                finishReducePhase(processingId, NODE_ADDRESS, result.processedPartitions());
             } else {
                 try {
                     var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                    remoteNode.remoteFinishReducePhase(processingId, nodeAddress, result.processedPartitions());
+                    remoteNode.remoteFinishReducePhase(processingId, NODE_ADDRESS, result.processedPartitions());
                 } catch (RemoteException | RemoteNodeUnavailableException e) {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish reduce phase on %s, master node unavailable".formatted(masterNode), e);
@@ -263,14 +259,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                             "Reduce phase failed", e);
                     var processingInfo = processingInfos.get(processingId);
                     var masterNode = processingInfo.masterNode();
-                    var nodeAddress = Application.getNodeAddress();
-                    if (masterNode.equals(nodeAddress)) {
+                    if (masterNode.equals(NODE_ADDRESS)) {
                         failProcessing(processingId);
                     } else {
                         cleanup(processingId);
                         try {
                             var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                            remoteNode.remoteHandleNodeFailure(processingId, nodeAddress);
+                            remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
                         } catch (RemoteException | RemoteNodeUnavailableException e2) {
                             LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                     "Reduce phase failed on %s and master node unavailable".formatted(masterNode), e2);
@@ -306,7 +301,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                     "Reduce phase completed on all nodes");
                             newState = newState.updateStatus(ProcessingStatus.FINISHED);
                             newState.activeNodes().forEach(activeNode -> {
-                                if (activeNode.equals(Application.getNodeAddress())) {
+                                if (activeNode.equals(NODE_ADDRESS)) {
                                     finishProcessing(processingId);
                                 } else {
                                     try {
@@ -354,7 +349,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                 newState = newState.updateFileAssignments(redistributedFileAssignments)
                                         .removeNodeAssignments(failedNode);
                                 redistributedFileAssignments.forEach((node, files) -> {
-                                    if (node.equals(Application.getNodeAddress())) {
+                                    if (node.equals(NODE_ADDRESS)) {
                                         startMapPhase(processingId, files);
                                     } else {
                                         try {
@@ -375,7 +370,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                 newState = newState.updatePartitionAssignments(redistributedPartitionAssignments)
                                         .removeNodeAssignments(failedNode);
                                 redistributedPartitionAssignments.forEach((node, partitions) -> {
-                                    if (node.equals(Application.getNodeAddress())) {
+                                    if (node.equals(NODE_ADDRESS)) {
                                         startReducePhase(processingId, partitions);
                                     } else {
                                         try {
@@ -426,7 +421,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
         processingStates.compute(processingId, (_, processingState) -> {
             var newState = processingState.fail();
             newState.activeNodes().forEach(node -> {
-                if (node.equals(Application.getNodeAddress())) {
+                if (node.equals(NODE_ADDRESS)) {
                     cleanup(processingId);
                 } else {
                     try {
@@ -456,8 +451,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
             processingInfo.cancel();
 
-            var nodeAddress = Application.getNodeAddress();
-            if (nodeAddress.equals(processingInfo.masterNode())) {
+            if (NODE_ADDRESS.equals(processingInfo.masterNode())) {
                 try {
                     FilesUtil.removePublicDirectories(processingId);
                 } catch (IOException e) {

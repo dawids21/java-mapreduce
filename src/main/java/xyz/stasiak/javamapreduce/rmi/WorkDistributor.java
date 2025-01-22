@@ -17,6 +17,7 @@ import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
+    private static final List<String> KNOWN_NODES = Application.getKnownNodes();
 
     private record NodeInfo(String address, int processingPower) {
         static NodeInfo fromRemoteNode(String address, RemoteNode node) throws RemoteException {
@@ -25,12 +26,11 @@ class WorkDistributor {
     }
 
     List<String> getActiveNodes(int processingId) {
-        var knownNodes = Application.getKnownNodes();
         LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                 "Starting node discovery for active nodes");
 
         var activeNodes = new ArrayList<String>();
-        for (var nodeAddress : knownNodes) {
+        for (var nodeAddress : KNOWN_NODES) {
             try {
                 var node = RmiUtil.getRemoteNode(nodeAddress);
                 node.isAlive();
