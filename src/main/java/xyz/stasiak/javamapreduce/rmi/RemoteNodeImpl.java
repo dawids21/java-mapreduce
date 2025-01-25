@@ -9,6 +9,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
@@ -27,11 +29,17 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     private final Map<Integer, ProcessingInfo> processingInfos;
     private final WorkDistributor workDistributor = new WorkDistributor();
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ScheduledExecutorService healthCheckExecutor = Executors.newSingleThreadScheduledExecutor();
 
     public RemoteNodeImpl() throws RemoteException {
         super();
         this.processingStates = new ConcurrentHashMap<>();
         this.processingInfos = new ConcurrentHashMap<>();
+        healthCheckExecutor.scheduleWithFixedDelay(
+                () -> checkNodesHealth(),
+                10,
+                10,
+                TimeUnit.SECONDS);
     }
 
     public void startProcessing(int processingId, ProcessingParameters parameters) {
@@ -486,8 +494,27 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     public void isAlive() throws RemoteException {
     }
 
+    private void checkNodesHealth() {
+        var knownNodes = Application.getKnownNodes();
+        knownNodes.stream()
+                .filter(node -> !node.equals(NODE_ADDRESS))
+                .forEach(node -> {
+                    try {
+                        var remoteNode = RmiUtil.getRemoteNode(node);
+                        remoteNode.isAlive();
+                    } catch (RemoteException | RemoteNodeUnavailableException e) {
+                        processingStates.forEach((processingId, state) -> {
+                            if (state.activeNodes().contains(node)) {
+                                handleNodeFailure(processingId, node);
+                            }
+                        });
+                    }
+                });
+    }
+
     public void shutdownExecutor() {
-        LoggingUtil.logInfo(LOGGER, getClass(), "Shutting down executor service");
+        LoggingUtil.logInfo(LOGGER, getClass(), "Shutting down executor services");
         executor.close();
+        healthCheckExecutor.shutdown();
     }
 }
