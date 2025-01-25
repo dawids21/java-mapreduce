@@ -108,7 +108,13 @@ public class CliApplication {
             var processingId = remoteServer.startProcessing(parameters);
             System.out.printf("Processing started with ID: %d%n", processingId);
         } catch (RemoteException e) {
-            System.out.println("Failed to start processing");
+            try {
+                connectToServer();
+                var processingId = remoteServer.startProcessing(parameters);
+                System.out.printf("Processing started with ID: %d%n", processingId);
+            } catch (RemoteException | NotBoundException e1) {
+                System.out.println("Failed to start processing");
+            }
         }
     }
 
@@ -119,7 +125,13 @@ public class CliApplication {
             var status = remoteServer.getProcessingStatus(processingId);
             System.out.printf("Processing %d status: %s%n", processingId, status);
         } catch (RemoteException e) {
-            System.out.println("Failed to get processing status");
+            try {
+                connectToServer();
+                var status = remoteServer.getProcessingStatus(processingId);
+                System.out.printf("Processing %d status: %s%n", processingId, status);
+            } catch (RemoteException | NotBoundException e1) {
+                System.out.println("Failed to get processing status");
+            }
         }
     }
 }
