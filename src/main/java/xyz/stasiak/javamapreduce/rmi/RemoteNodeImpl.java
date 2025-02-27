@@ -503,6 +503,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                         var remoteNode = RmiUtil.getRemoteNode(node);
                         remoteNode.isAlive();
                     } catch (RemoteException | RemoteNodeUnavailableException e) {
+                        processingInfos.forEach((processingId, processingInfo) -> {
+                            if (processingInfo.masterNode().equals(node)) {
+                                cleanup(processingId);
+                            }
+                        });
                         processingStates.forEach((processingId, state) -> {
                             if (state.activeNodes().contains(node)) {
                                 handleNodeFailure(processingId, node);
