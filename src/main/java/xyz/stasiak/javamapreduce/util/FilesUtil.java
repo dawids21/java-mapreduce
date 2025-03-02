@@ -9,12 +9,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.List;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.Application;
-
 public class FilesUtil {
     private static final Logger LOGGER = Logger.getLogger(FilesUtil.class.getName());
-    private static final String DEFAULT_NODE_DIRECTORY = Application.getNodeDirectory();
-    private static final String DEFAULT_PUBLIC_DIRECTORY = Application.getPublicDirectory();
+    private static final String DEFAULT_NODE_DIRECTORY = SystemProperties.getNodeDirectory();
+    private static final String DEFAULT_PUBLIC_DIRECTORY = SystemProperties.getPublicDirectory();
 
     public static Path getBaseNodeDirectory(int processingId) {
         return Path.of(DEFAULT_NODE_DIRECTORY, String.valueOf(processingId));

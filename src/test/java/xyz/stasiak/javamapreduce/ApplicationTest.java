@@ -19,7 +19,10 @@ import org.junit.jupiter.api.io.TempDir;
 import xyz.stasiak.javamapreduce.cli.Command;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
 import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
+import xyz.stasiak.javamapreduce.rmi.RemoteNodeImpl;
 import xyz.stasiak.javamapreduce.rmi.RemoteServer;
+import xyz.stasiak.javamapreduce.rmi.RemoteServerImpl;
+import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 class ApplicationTest {
 
@@ -40,15 +43,15 @@ class ApplicationTest {
     }
 
     @BeforeEach
-    void setUp() throws IOException, NotBoundException {
+    void setUp() throws Exception {
         inputDir = tempDir.resolve("input");
         outputDir = tempDir.resolve("output");
 
         Files.createDirectory(inputDir);
         Files.createDirectory(outputDir);
 
-        new Application();
-        var port = Integer.parseInt(Application.getRmiPort());
+        initApplication();
+        var port = Integer.parseInt(SystemProperties.getRmiPort());
         Registry rmiRegistry = LocateRegistry.getRegistry(port);
         remoteServer = (RemoteServer) rmiRegistry.lookup("server");
     }
@@ -98,4 +101,26 @@ class ApplicationTest {
 
         return status;
     }
+
+    private void initApplication() throws Exception {
+        var rmiPort = Integer.parseInt(SystemProperties.getRmiPort());
+        Registry rmiRegistry = LocateRegistry.createRegistry(rmiPort);
+        RemoteNodeImpl remoteNode = new RemoteNodeImpl();
+        rmiRegistry.rebind("node", remoteNode);
+        remoteServer = new RemoteServerImpl(remoteNode);
+        rmiRegistry.rebind("server", remoteServer);
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                if (remoteNode != null) {
+                    remoteNode.shutdownExecutor();
+                    rmiRegistry.unbind("node");
+                }
+                if (remoteServer != null) {
+                    rmiRegistry.unbind("server");
+                }
+            } catch (Exception e) {
+            }
+        }));
+    }
+
 }

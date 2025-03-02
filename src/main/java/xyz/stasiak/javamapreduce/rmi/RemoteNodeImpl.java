@@ -14,16 +14,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.Application;
 import xyz.stasiak.javamapreduce.map.MapPhaseCoordinator;
 import xyz.stasiak.javamapreduce.reduce.ReducePhaseCoordinator;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
+import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     private static final Logger LOGGER = Logger.getLogger(RemoteNodeImpl.class.getSimpleName());
-    private static final String NODE_ADDRESS = Application.getNodeAddress();
+    private static final String NODE_ADDRESS = SystemProperties.getNodeAddress();
 
     private final Map<Integer, ProcessingState> processingStates;
     private final Map<Integer, ProcessingInfo> processingInfos;
@@ -495,7 +495,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     }
 
     private void checkNodesHealth() {
-        var knownNodes = Application.getKnownNodes();
+        var knownNodes = SystemProperties.getKnownNodes();
         knownNodes.stream()
                 .filter(node -> !node.equals(NODE_ADDRESS))
                 .forEach(node -> {

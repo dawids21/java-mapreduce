@@ -11,13 +11,13 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.Application;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
+import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
-    private static final List<String> KNOWN_NODES = Application.getKnownNodes();
+    private static final List<String> KNOWN_NODES = SystemProperties.getKnownNodes();
 
     private record NodeInfo(String address, int processingPower) {
         static NodeInfo fromRemoteNode(String address, RemoteNode node) throws RemoteException {
