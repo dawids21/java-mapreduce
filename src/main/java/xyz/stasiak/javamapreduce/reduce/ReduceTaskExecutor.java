@@ -1,15 +1,14 @@
 package xyz.stasiak.javamapreduce.reduce;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
+import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
+import xyz.stasiak.javamapreduce.util.KeyValue;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
+
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.logging.Logger;
-
-import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
-import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class ReduceTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(ReduceTaskExecutor.class.getName());
@@ -48,41 +47,48 @@ class ReduceTaskExecutor {
         return result;
     }
 
-    private void processFile(Path inputFile, Path outputFile) throws IOException {
-        try (var reader = Files.newBufferedReader(inputFile);
+    private void processFile(Path inputFile, Path outputFile) throws IOException, ClassNotFoundException {
+        try (var inputStream = Files.newInputStream(inputFile);
+                var bufferedInputStream = new BufferedInputStream(inputStream, 1024 * 1024);
+                var objectReader = new ObjectInputStream(bufferedInputStream);
                 var writer = Files.newBufferedWriter(outputFile)) {
-            processLines(reader, writer);
+
+            processObjects(objectReader, writer);
         }
     }
 
-    private void processLines(BufferedReader reader, BufferedWriter writer) throws IOException {
+    private void processObjects(ObjectInputStream reader, BufferedWriter writer)
+            throws IOException, ClassNotFoundException {
         String currentKey = null;
         var currentValues = new ArrayList<String>();
-        String line;
 
-        while ((line = reader.readLine()) != null) {
-            task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
-            var parts = line.split("\t");
-            var key = parts[0];
-            var value = parts[1];
+        try {
+            while (true) {
+                task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
 
-            if (currentKey == null) {
-                currentKey = key;
-                currentValues.add(value);
-            } else if (key.equals(currentKey)) {
-                currentValues.add(value);
-            } else {
+                KeyValue keyValue = (KeyValue) reader.readObject();
+                String key = keyValue.key();
+                String value = keyValue.value();
+
+                if (currentKey == null) {
+                    currentKey = key;
+                    currentValues.add(value);
+                } else if (key.equals(currentKey)) {
+                    currentValues.add(value);
+                } else {
+                    task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
+                    writeResult(writer, currentKey, currentValues);
+                    currentKey = key;
+                    currentValues.clear();
+                    currentValues.add(value);
+                }
+            }
+        } catch (EOFException e) {
+            // End of file reached, process the last group
+            if (currentKey != null) {
                 task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
                 writeResult(writer, currentKey, currentValues);
-                currentKey = key;
-                currentValues.clear();
-                currentValues.add(value);
             }
-        }
-
-        if (currentKey != null) {
-            task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
-            writeResult(writer, currentKey, currentValues);
         }
     }
 

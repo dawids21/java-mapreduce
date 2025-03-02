@@ -1,7 +1,8 @@
 package xyz.stasiak.javamapreduce.map;
 
-import java.io.BufferedWriter;
+import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.logging.Logger;
@@ -50,24 +51,23 @@ class MapTaskExecutor {
 
     private void processFile(Path inputFile, Path outputFile) throws IOException {
         try (var reader = Files.newBufferedReader(inputFile);
-                var writer = Files.newBufferedWriter(outputFile)) {
+                var outputStream = Files.newOutputStream(outputFile);
+                var bufferedOutputStream = new BufferedOutputStream(outputStream, 1024 * 1024);
+                var objectWriter = new ObjectOutputStream(bufferedOutputStream)) {
             String line;
             while ((line = reader.readLine()) != null) {
                 task.cancellationToken().throwIfCancelled(task.processingId(),
                         "Map task cancelled");
-                processLine(line, writer);
+                processLine(line, objectWriter);
             }
         }
     }
 
-    private void processLine(String line, BufferedWriter writer) throws IOException {
+    private void processLine(String line, ObjectOutputStream writer) throws IOException {
         var mapper = task.mapper();
         var keyValues = mapper.map(line);
         for (var keyValue : keyValues) {
-            writer.write(keyValue.key().toString());
-            writer.write('\t');
-            writer.write(keyValue.value().toString());
-            writer.newLine();
+            writer.writeObject(keyValue);
         }
     }
 }

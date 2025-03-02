@@ -1,6 +1,6 @@
 package xyz.stasiak.javamapreduce.map;
 
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -10,13 +10,7 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
-
-record KeyValuePair(String key, String value) implements Comparable<KeyValuePair> {
-    @Override
-    public int compareTo(KeyValuePair other) {
-        return this.key.compareTo(other.key);
-    }
-}
+import xyz.stasiak.javamapreduce.util.KeyValue;
 
 class PartitionTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(PartitionTaskExecutor.class.getName());
@@ -55,23 +49,27 @@ class PartitionTaskExecutor {
         return result;
     }
 
-    private List<Path> processFile(Path inputFile) throws IOException {
+    private List<Path> processFile(Path inputFile) throws IOException, ClassNotFoundException {
         var outputFiles = new ArrayList<Path>();
-        var partitions = new HashMap<Integer, List<KeyValuePair>>();
+        var partitions = new HashMap<Integer, List<KeyValue>>();
 
-        try (var reader = Files.newBufferedReader(inputFile)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
-                line = line.trim();
-                var parts = line.split("\t");
+        try (var inputStream = Files.newInputStream(inputFile);
+                var bufferedInputStream = new BufferedInputStream(inputStream, 1024 * 1024);
+                var objectReader = new ObjectInputStream(bufferedInputStream)) {
 
-                var key = parts[0];
-                var value = parts[1];
-                var partition = task.partitionFunction().apply(key);
+            while (true) {
+                try {
+                    task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
 
-                partitions.computeIfAbsent(partition, _ -> new ArrayList<>())
-                        .add(new KeyValuePair(key, value));
+                    KeyValue keyValue = (KeyValue) objectReader.readObject();
+                    var key = keyValue.key();
+                    var partition = task.partitionFunction().apply(key);
+
+                    partitions.computeIfAbsent(partition, _ -> new ArrayList<>())
+                            .add(keyValue);
+                } catch (EOFException e) {
+                    break;
+                }
             }
         }
 
@@ -79,13 +77,17 @@ class PartitionTaskExecutor {
             task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
             var partition = entry.getKey();
             var pairs = entry.getValue();
-            pairs.sort(KeyValuePair::compareTo);
+            pairs.sort(KeyValue::compareTo);
 
             var outputFile = task.outputDirectory().resolve("%d/%s".formatted(partition, inputFile.getFileName()));
-            try (var writer = Files.newBufferedWriter(outputFile)) {
+
+            try (var outputStream = Files.newOutputStream(outputFile);
+                    var bufferedOutputStream = new BufferedOutputStream(outputStream, 1024 * 1024);
+                    var objectWriter = new ObjectOutputStream(bufferedOutputStream)) {
+
                 for (var pair : pairs) {
                     task.cancellationToken().throwIfCancelled(task.processingId(), "Partition task cancelled");
-                    writer.write("%s\t%s%n".formatted(pair.key(), pair.value()));
+                    objectWriter.writeObject(pair);
                 }
             }
             outputFiles.add(outputFile);

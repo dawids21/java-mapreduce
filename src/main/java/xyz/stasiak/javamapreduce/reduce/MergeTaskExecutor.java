@@ -1,8 +1,6 @@
 package xyz.stasiak.javamapreduce.reduce;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.IOException;
+import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -10,15 +8,16 @@ import java.util.List;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
+import xyz.stasiak.javamapreduce.util.KeyValue;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class MergeTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(MergeTaskExecutor.class.getName());
     private final MergeTask task;
 
-    private record FileHandle(BufferedReader reader, String currentLine, boolean isFinished) {
-        FileHandle updateLine(String line) {
-            return new FileHandle(reader, line, false);
+    private record FileHandle(ObjectInputStream reader, KeyValue currentKeyValue, boolean isFinished) {
+        FileHandle updateKeyValue(KeyValue keyValue) {
+            return new FileHandle(reader, keyValue, false);
         }
 
         FileHandle finish() {
@@ -63,43 +62,59 @@ class MergeTaskExecutor {
         return result;
     }
 
-    private void mergeFiles(List<Path> inputFiles, Path outputFile) throws IOException {
+    private void mergeFiles(List<Path> inputFiles, Path outputFile) throws IOException, ClassNotFoundException {
         var fileHandles = openInputFiles(inputFiles);
-        try (var writer = Files.newBufferedWriter(outputFile)) {
-            mergeFileHandles(fileHandles, writer);
+        try (var outputStream = Files.newOutputStream(outputFile);
+                var bufferedOutputStream = new BufferedOutputStream(outputStream, 1024 * 1024);
+                var objectWriter = new ObjectOutputStream(bufferedOutputStream)) {
+
+            mergeFileHandles(fileHandles, objectWriter);
         } finally {
             closeFileHandles(fileHandles);
         }
     }
 
-    private List<FileHandle> openInputFiles(List<Path> inputFiles) throws IOException {
+    private List<FileHandle> openInputFiles(List<Path> inputFiles) throws IOException, ClassNotFoundException {
         var handles = new ArrayList<FileHandle>();
         for (var file : inputFiles) {
             task.cancellationToken().throwIfCancelled(task.processingId(), "Merge task cancelled");
-            var reader = Files.newBufferedReader(file);
-            var line = reader.readLine();
-            if (line != null) {
-                handles.add(new FileHandle(reader, line, false));
-            } else {
+            var inputStream = Files.newInputStream(file);
+            var bufferedInputStream = new BufferedInputStream(inputStream, 1024 * 1024);
+            var reader = new ObjectInputStream(bufferedInputStream);
+
+            KeyValue keyValue = null;
+            try {
+                keyValue = (KeyValue) reader.readObject();
+                handles.add(new FileHandle(reader, keyValue, false));
+            } catch (EOFException | ClassNotFoundException e) {
                 handles.add(new FileHandle(reader, null, true));
+                bufferedInputStream.close();
             }
         }
         return handles;
     }
 
-    private void mergeFileHandles(List<FileHandle> fileHandles, BufferedWriter writer) throws IOException {
+    private void mergeFileHandles(List<FileHandle> fileHandles, ObjectOutputStream writer)
+            throws IOException, ClassNotFoundException {
         int finishedFiles = 0;
         while (finishedFiles < fileHandles.size()) {
             task.cancellationToken().throwIfCancelled(task.processingId(), "Merge task cancelled");
-            var minHandle = findMinimumLine(fileHandles);
-            writer.write(minHandle.currentLine);
-            writer.newLine();
+            var minHandle = findMinimumKeyValue(fileHandles);
+
+            if (minHandle.currentKeyValue != null) {
+                writer.writeObject(minHandle.currentKeyValue);
+            }
 
             var reader = minHandle.reader;
-            var nextLine = reader.readLine();
+            KeyValue nextKeyValue = null;
+            try {
+                nextKeyValue = (KeyValue) reader.readObject();
+            } catch (EOFException e) {
+            }
+
             var handleIndex = fileHandles.indexOf(minHandle);
-            if (nextLine != null) {
-                fileHandles.set(handleIndex, minHandle.updateLine(nextLine));
+            if (nextKeyValue != null) {
+                fileHandles.set(handleIndex, minHandle.updateKeyValue(nextKeyValue));
             } else {
                 finishedFiles++;
                 fileHandles.set(handleIndex, minHandle.finish());
@@ -107,14 +122,28 @@ class MergeTaskExecutor {
         }
     }
 
-    private FileHandle findMinimumLine(List<FileHandle> fileHandles) {
-        var minHandle = fileHandles.get(0);
-        var minLine = minHandle.currentLine;
+    private FileHandle findMinimumKeyValue(List<FileHandle> fileHandles) {
+        FileHandle minHandle = null;
+        KeyValue minKeyValue = null;
 
         for (var handle : fileHandles) {
-            if (minHandle.isFinished || (!handle.isFinished() && handle.currentLine.compareTo(minLine) < 0)) {
+            if (!handle.isFinished) {
                 minHandle = handle;
-                minLine = handle.currentLine;
+                minKeyValue = handle.currentKeyValue;
+                break;
+            }
+        }
+
+        if (minHandle == null) {
+            return fileHandles.get(0);
+        }
+
+        for (var handle : fileHandles) {
+            if (!handle.isFinished &&
+                    (minKeyValue == null ||
+                            handle.currentKeyValue.compareTo(minKeyValue) < 0)) {
+                minHandle = handle;
+                minKeyValue = handle.currentKeyValue;
             }
         }
 
