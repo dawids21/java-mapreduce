@@ -22,8 +22,19 @@ class WorkDistributor {
     private static final List<String> KNOWN_NODES = SystemProperties.getKnownNodes();
 
     private record NodeInfo(String address, int processingPower) {
-        static NodeInfo fromRemoteNode(String address, RemoteNode node) throws RemoteException {
-            return new NodeInfo(address, node.getProcessingPower());
+        static NodeInfo fromRemoteNode(String address) throws RemoteException, RemoteNodeUnavailableException {
+            Integer result = RmiUtil.call(address, (remoteNode) -> {
+                try {
+                    return Integer.valueOf(remoteNode.getProcessingPower());
+                } catch (RemoteException e) {
+                    throw new RemoteRuntimeException(e);
+                }
+            });
+            return new NodeInfo(address, result);
+        }
+
+        static NodeInfo fromLocalNode(String address) {
+            return new NodeInfo(address, RuntimeUtil.getProcessingPower());
         }
     }
 
@@ -34,8 +45,17 @@ class WorkDistributor {
         var activeNodes = new ArrayList<String>();
         for (var nodeAddress : KNOWN_NODES) {
             try {
-                var node = RmiUtil.getRemoteNode(nodeAddress);
-                node.isAlive();
+                if (NODE_ADDRESS.equals(nodeAddress)) {
+                    activeNodes.add(nodeAddress);
+                    continue;
+                }
+                RmiUtil.call(nodeAddress, (remoteNode) -> {
+                    try {
+                        remoteNode.isAlive();
+                    } catch (RemoteException e) {
+                        throw new RemoteRuntimeException(e);
+                    }
+                });
                 activeNodes.add(nodeAddress);
             } catch (RemoteNodeUnavailableException | RemoteException e) {
                 LoggingUtil.logWarning(LOGGER, processingId, getClass(),
@@ -154,8 +174,12 @@ class WorkDistributor {
 
         for (var nodeAddress : activeNodes) {
             try {
-                var node = RmiUtil.getRemoteNode(nodeAddress);
-                var nodeInfo = NodeInfo.fromRemoteNode(nodeAddress, node);
+                if (NODE_ADDRESS.equals(nodeAddress)) {
+                    var nodeInfo = NodeInfo.fromLocalNode(nodeAddress);
+                    activeNodesWithPower.put(nodeAddress, nodeInfo);
+                    continue;
+                }
+                var nodeInfo = NodeInfo.fromRemoteNode(nodeAddress);
                 activeNodesWithPower.put(nodeAddress, nodeInfo);
             } catch (RemoteException | RemoteNodeUnavailableException e) {
                 LoggingUtil.logWarning(LOGGER, processingId, getClass(),

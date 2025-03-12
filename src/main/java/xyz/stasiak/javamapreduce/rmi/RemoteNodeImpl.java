@@ -72,9 +72,15 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     startMapPhase(processingId, files);
                 } else {
                     try {
-                        var remoteNode = RmiUtil.getRemoteNode(node);
-                        remoteNode.remoteStartNodeProcessing(processingId, parameters, partitionFunction, NODE_ADDRESS);
-                        remoteNode.remoteStartMapPhase(processingId, files);
+                        RmiUtil.call(node, (remoteNode) -> {
+                            try {
+                                remoteNode.remoteStartNodeProcessing(processingId, parameters, partitionFunction,
+                                        NODE_ADDRESS);
+                                remoteNode.remoteStartMapPhase(processingId, files);
+                            } catch (RemoteException e) {
+                                throw new RemoteRuntimeException(e);
+                            }
+                        });
                     } catch (RemoteException | RemoteNodeUnavailableException | ProcessingException e) {
                         LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                 "Failed to start map phase on %s".formatted(node), e);
@@ -136,8 +142,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 finishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
             } else {
                 try {
-                    var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                    remoteNode.remoteFinishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
+                    RmiUtil.call(masterNode, (remoteNode) -> {
+                        try {
+                            remoteNode.remoteFinishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
+                        } catch (RemoteException e) {
+                            throw new RemoteRuntimeException(e);
+                        }
+                    });
                 } catch (RemoteException | RemoteNodeUnavailableException e) {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish map phase on %s, master node unavailable".formatted(masterNode), e);
@@ -155,8 +166,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     } else {
                         cleanup(processingId);
                         try {
-                            var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                            remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
+                            RmiUtil.call(masterNode, (remoteNode) -> {
+                                try {
+                                    remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
+                                } catch (RemoteException e2) {
+                                    throw new RemoteRuntimeException(e2);
+                                }
+                            });
                         } catch (RemoteException | RemoteNodeUnavailableException e2) {
                             LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                     "Map phase failed on %s and master node unavailable".formatted(masterNode), e2);
@@ -178,8 +194,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     (_, processingState) -> {
                         if (processingState.isFailed()) {
                             try {
-                                var remoteNode = RmiUtil.getRemoteNode(node);
-                                remoteNode.remoteCleanup(processingId);
+                                RmiUtil.call(node, (remoteNode) -> {
+                                    try {
+                                        remoteNode.remoteCleanup(processingId);
+                                    } catch (RemoteException e) {
+                                        throw new RemoteRuntimeException(e);
+                                    }
+                                });
                             } catch (RemoteException | RemoteNodeUnavailableException e) {
                                 LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                         "Failed to cleanup on %s".formatted(node), e);
@@ -209,8 +230,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                     startReducePhase(processingId, partitions);
                                 } else {
                                     try {
-                                        var remoteNode = RmiUtil.getRemoteNode(activeNode);
-                                        remoteNode.remoteStartReducePhase(processingId, partitions);
+                                        RmiUtil.call(activeNode, (remoteNode) -> {
+                                            try {
+                                                remoteNode.remoteStartReducePhase(processingId, partitions);
+                                            } catch (RemoteException e) {
+                                                throw new RemoteRuntimeException(e);
+                                            }
+                                        });
                                     } catch (RemoteException | RemoteNodeUnavailableException e) {
                                         LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                                 "Failed to start reduce phase on %s".formatted(node), e);
@@ -254,8 +280,14 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 finishReducePhase(processingId, NODE_ADDRESS, result.processedPartitions());
             } else {
                 try {
-                    var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                    remoteNode.remoteFinishReducePhase(processingId, NODE_ADDRESS, result.processedPartitions());
+                    RmiUtil.call(masterNode, (remoteNode) -> {
+                        try {
+                            remoteNode.remoteFinishReducePhase(processingId, NODE_ADDRESS,
+                                    result.processedPartitions());
+                        } catch (RemoteException e) {
+                            throw new RemoteRuntimeException(e);
+                        }
+                    });
                 } catch (RemoteException | RemoteNodeUnavailableException e) {
                     LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                             "Failed to finish reduce phase on %s, master node unavailable".formatted(masterNode), e);
@@ -273,8 +305,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     } else {
                         cleanup(processingId);
                         try {
-                            var remoteNode = RmiUtil.getRemoteNode(masterNode);
-                            remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
+                            RmiUtil.call(masterNode, (remoteNode) -> {
+                                try {
+                                    remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
+                                } catch (RemoteException e2) {
+                                    throw new RemoteRuntimeException(e2);
+                                }
+                            });
                         } catch (RemoteException | RemoteNodeUnavailableException e2) {
                             LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                     "Reduce phase failed on %s and master node unavailable".formatted(masterNode), e2);
@@ -296,8 +333,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     (_, processingState) -> {
                         if (processingState.isFailed()) {
                             try {
-                                var remoteNode = RmiUtil.getRemoteNode(node);
-                                remoteNode.remoteCleanup(processingId);
+                                RmiUtil.call(node, (remoteNode) -> {
+                                    try {
+                                        remoteNode.remoteCleanup(processingId);
+                                    } catch (RemoteException e) {
+                                        throw new RemoteRuntimeException(e);
+                                    }
+                                });
                             } catch (RemoteException | RemoteNodeUnavailableException e) {
                                 LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                         "Failed to cleanup on %s".formatted(node), e);
@@ -314,8 +356,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                     finishProcessing(processingId);
                                 } else {
                                     try {
-                                        var remoteNode = RmiUtil.getRemoteNode(activeNode);
-                                        remoteNode.remoteFinishProcessing(processingId);
+                                        RmiUtil.call(activeNode, (remoteNode) -> {
+                                            try {
+                                                remoteNode.remoteFinishProcessing(processingId);
+                                            } catch (RemoteException e) {
+                                                throw new RemoteRuntimeException(e);
+                                            }
+                                        });
                                     } catch (RemoteException | RemoteNodeUnavailableException e) {
                                         LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                                 "Failed to finish processing on %s".formatted(node), e);
@@ -362,8 +409,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                         startMapPhase(processingId, files);
                                     } else {
                                         try {
-                                            var remoteNode = RmiUtil.getRemoteNode(node);
-                                            remoteNode.remoteStartMapPhase(processingId, files);
+                                            RmiUtil.call(node, (remoteNode) -> {
+                                                try {
+                                                    remoteNode.remoteStartMapPhase(processingId, files);
+                                                } catch (RemoteException e) {
+                                                    throw new RemoteRuntimeException(e);
+                                                }
+                                            });
                                         } catch (RemoteException | RemoteNodeUnavailableException e) {
                                             LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                                     "Failed to start map phase on %s".formatted(node), e);
@@ -383,8 +435,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                         startReducePhase(processingId, partitions);
                                     } else {
                                         try {
-                                            var remoteNode = RmiUtil.getRemoteNode(node);
-                                            remoteNode.remoteStartReducePhase(processingId, partitions);
+                                            RmiUtil.call(node, (remoteNode) -> {
+                                                try {
+                                                    remoteNode.remoteStartReducePhase(processingId, partitions);
+                                                } catch (RemoteException e) {
+                                                    throw new RemoteRuntimeException(e);
+                                                }
+                                            });
                                         } catch (RemoteException | RemoteNodeUnavailableException e) {
                                             LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                                     "Failed to start reduce phase on %s".formatted(node), e);
@@ -434,8 +491,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     cleanup(processingId);
                 } else {
                     try {
-                        var remoteNode = RmiUtil.getRemoteNode(node);
-                        remoteNode.remoteCleanup(processingId);
+                        RmiUtil.call(node, (remoteNode) -> {
+                            try {
+                                remoteNode.remoteCleanup(processingId);
+                            } catch (RemoteException e) {
+                                throw new RemoteRuntimeException(e);
+                            }
+                        });
                     } catch (RemoteException | RemoteNodeUnavailableException e) {
                         LoggingUtil.logSevere(LOGGER, processingId, getClass(),
                                 "Failed to cleanup on %s".formatted(node), e);
@@ -501,8 +563,13 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 .filter(node -> !node.equals(NODE_ADDRESS))
                 .forEach(node -> {
                     try {
-                        var remoteNode = RmiUtil.getRemoteNode(node);
-                        remoteNode.isAlive();
+                        RmiUtil.call(node, (remoteNode) -> {
+                            try {
+                                remoteNode.isAlive();
+                            } catch (RemoteException e) {
+                                throw new RemoteRuntimeException(e);
+                            }
+                        });
                     } catch (RemoteException | RemoteNodeUnavailableException e) {
                         processingInfos.forEach((processingId, processingInfo) -> {
                             if (processingInfo.masterNode().equals(node)) {
