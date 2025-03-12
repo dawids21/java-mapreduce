@@ -13,10 +13,12 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
+import xyz.stasiak.javamapreduce.util.RuntimeUtil;
 import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
+    private static final String NODE_ADDRESS = SystemProperties.getNodeAddress();
     private static final List<String> KNOWN_NODES = SystemProperties.getKnownNodes();
 
     private record NodeInfo(String address, int processingPower) {

@@ -4,12 +4,14 @@ import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Random;
 
+import xyz.stasiak.javamapreduce.util.SystemProperties;
+
 public class RemoteServerImpl extends UnicastRemoteObject implements RemoteServer {
 
     private final RemoteNodeImpl remoteNode;
 
     public RemoteServerImpl(RemoteNodeImpl remoteNode) throws RemoteException {
-        super();
+        super(Integer.parseInt(SystemProperties.getRmiPort()) + 2);
         this.remoteNode = remoteNode;
     }
 

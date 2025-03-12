@@ -24,31 +24,34 @@ public class SystemProperties {
     }
 
     public static String getNodeDirectory() {
-        return getProperty("node.directory");
+        return getProperty("NODE_DIRECTORY", "node.directory");
     }
 
     public static String getPublicDirectory() {
-        return getProperty("public.directory");
+        return getProperty("PUBLIC_DIRECTORY", "public.directory");
     }
 
     public static String getRmiPort() {
-        return getProperty("rmi.port");
+        return getProperty("RMI_PORT", "rmi.port");
     }
 
     public static String getNodeAddress() {
-        return getProperty("node.address");
+        return getProperty("NODE_ADDRESS", "node.address");
     }
 
     public static List<String> getKnownNodes() {
-        return Arrays.stream(getProperty("known.nodes").split(","))
+        return Arrays.stream(getProperty("KNOWN_NODES", "known.nodes").split(","))
                 .map(String::trim)
                 .toList();
     }
 
-    private static String getProperty(String key) {
-        var property = System.getProperty(key, properties.getProperty(key));
+    private static String getProperty(String envKey, String key) {
+        String envValue = System.getenv(envKey);
+        var property = envValue != null ? envValue : System.getProperty(key, properties.getProperty(key));
+
         if (property == null) {
-            throw new IllegalStateException("Property %s not set in application.properties".formatted(key));
+            throw new IllegalStateException(
+                    "Property %s not set in environment, system properties, or application.properties".formatted(key));
         }
         return property;
     }

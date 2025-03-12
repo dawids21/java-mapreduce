@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -35,10 +36,16 @@ public class FilesUtil {
     }
 
     public static List<Integer> getPartitions(int processingId) throws IOException {
-        try (var paths = Files.list(getPartitionFilesDirectory(processingId))) {
-            return paths.map(path -> Integer.parseInt(path.getFileName().toString()))
-                    .toList();
+        var directory = getPartitionFilesDirectory(processingId).toFile();
+        var partitionDirectories = directory.list();
+        if (partitionDirectories == null) {
+            LoggingUtil.logWarning(LOGGER, processingId, FilesUtil.class, "Failed to list partition directories");
+            return List.of();
         }
+        var partitions = Arrays.stream(partitionDirectories)
+                .map(dirName -> Integer.parseInt(dirName))
+                .toList();
+        return partitions;
     }
 
     public static Path getMergeFilesDirectory(int processingId) {
@@ -65,17 +72,28 @@ public class FilesUtil {
     }
 
     public static void removeEmptyPartitionDirectories(int processingId) throws IOException {
-        try (var paths = Files.list(getPartitionFilesDirectory(processingId))) {
-            paths.forEach(path -> {
+        LoggingUtil.logInfo(LOGGER, processingId, FilesUtil.class, "Removing empty partition directories");
+
+        var partitionDirectory = getPartitionFilesDirectory(processingId).toFile();
+        var partitionDirectories = partitionDirectory.list();
+        if (partitionDirectories == null) {
+            return;
+        }
+        for (String partitionPathStr : partitionDirectories) {
+            var partitionPath = Path.of(partitionDirectory.getAbsolutePath(), partitionPathStr);
+            var partition = partitionPath.toFile();
+            var partitionFiles = partition.list();
+            if (partitionFiles == null) {
+                continue;
+            }
+            if (partitionFiles.length == 0) {
                 try {
-                    if (Files.list(path).findFirst().isEmpty()) {
-                        deleteDirectory(path);
-                    }
+                    deleteDirectory(partitionPath);
                 } catch (IOException e) {
                     LoggingUtil.logWarning(LOGGER, processingId, FilesUtil.class,
-                            "Failed to check or delete directory: " + path, e);
+                            "Failed to check or delete directory: " + partitionPath, e);
                 }
-            });
+            }
         }
     }
 

@@ -18,6 +18,7 @@ import xyz.stasiak.javamapreduce.map.MapPhaseCoordinator;
 import xyz.stasiak.javamapreduce.reduce.ReducePhaseCoordinator;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
+import xyz.stasiak.javamapreduce.util.RuntimeUtil;
 import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
@@ -32,7 +33,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     private final ScheduledExecutorService healthCheckExecutor = Executors.newSingleThreadScheduledExecutor();
 
     public RemoteNodeImpl() throws RemoteException {
-        super();
+        super(Integer.parseInt(SystemProperties.getRmiPort()) + 1);
         this.processingStates = new ConcurrentHashMap<>();
         this.processingInfos = new ConcurrentHashMap<>();
         healthCheckExecutor.scheduleWithFixedDelay(
@@ -480,7 +481,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
 
     @Override
     public int getProcessingPower() throws RemoteException {
-        return Runtime.getRuntime().availableProcessors();
+        return RuntimeUtil.getProcessingPower();
     }
 
     public ProcessingStatus getProcessingStatus(int processingId) {
