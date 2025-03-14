@@ -193,17 +193,21 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             processingStates.compute(processingId,
                     (_, processingState) -> {
                         if (processingState.isFailed()) {
-                            try {
-                                RmiUtil.call(node, (remoteNode) -> {
-                                    try {
-                                        remoteNode.remoteCleanup(processingId);
-                                    } catch (RemoteException e) {
-                                        throw new RemoteRuntimeException(e);
-                                    }
-                                });
-                            } catch (RemoteException | RemoteNodeUnavailableException e) {
-                                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                                        "Failed to cleanup on %s".formatted(node), e);
+                            if (node.equals(NODE_ADDRESS)) {
+                                cleanup(processingId);
+                            } else {
+                                try {
+                                    RmiUtil.call(node, (remoteNode) -> {
+                                        try {
+                                            remoteNode.remoteCleanup(processingId);
+                                        } catch (RemoteException e) {
+                                            throw new RemoteRuntimeException(e);
+                                        }
+                                    });
+                                } catch (RemoteException | RemoteNodeUnavailableException e) {
+                                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                            "Failed to cleanup on %s".formatted(node), e);
+                                }
                             }
                             return processingState;
                         }
@@ -332,17 +336,21 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
             processingStates.compute(processingId,
                     (_, processingState) -> {
                         if (processingState.isFailed()) {
-                            try {
-                                RmiUtil.call(node, (remoteNode) -> {
-                                    try {
-                                        remoteNode.remoteCleanup(processingId);
-                                    } catch (RemoteException e) {
-                                        throw new RemoteRuntimeException(e);
-                                    }
-                                });
-                            } catch (RemoteException | RemoteNodeUnavailableException e) {
-                                LoggingUtil.logSevere(LOGGER, processingId, getClass(),
-                                        "Failed to cleanup on %s".formatted(node), e);
+                            if (node.equals(NODE_ADDRESS)) {
+                                cleanup(processingId);
+                            } else {
+                                try {
+                                    RmiUtil.call(node, (remoteNode) -> {
+                                        try {
+                                            remoteNode.remoteCleanup(processingId);
+                                        } catch (RemoteException e) {
+                                            throw new RemoteRuntimeException(e);
+                                        }
+                                    });
+                                } catch (RemoteException | RemoteNodeUnavailableException e) {
+                                    LoggingUtil.logSevere(LOGGER, processingId, getClass(),
+                                            "Failed to cleanup on %s".formatted(node), e);
+                                }
                             }
                             return processingState;
                         }
