@@ -11,10 +11,10 @@ import java.rmi.registry.Registry;
 import java.util.List;
 import java.util.logging.LogManager;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import xyz.stasiak.javamapreduce.cli.Command;
 import xyz.stasiak.javamapreduce.cli.CommandWithArguments;
@@ -22,6 +22,7 @@ import xyz.stasiak.javamapreduce.rmi.ProcessingStatus;
 import xyz.stasiak.javamapreduce.rmi.RemoteNodeImpl;
 import xyz.stasiak.javamapreduce.rmi.RemoteServer;
 import xyz.stasiak.javamapreduce.rmi.RemoteServerImpl;
+import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 class ApplicationTest {
@@ -29,9 +30,8 @@ class ApplicationTest {
     record TestFile(String name, String content) {
     }
 
-    @TempDir
-    Path tempDir;
-
+    private static final String INPUT_NAME = "junit/input";
+    private static final String OUTPUT_NAME = "junit/output";
     private Path inputDir;
     private Path outputDir;
     private RemoteServer remoteServer;
@@ -44,16 +44,21 @@ class ApplicationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        inputDir = tempDir.resolve("input");
-        outputDir = tempDir.resolve("output");
+        inputDir = Path.of(FilesUtil.getFilesDirectory(INPUT_NAME));
+        outputDir = Path.of(FilesUtil.getFilesDirectory(OUTPUT_NAME));
 
-        Files.createDirectory(inputDir);
-        Files.createDirectory(outputDir);
+        Files.createDirectories(inputDir);
+        Files.createDirectories(outputDir);
 
         initApplication();
         var port = Integer.parseInt(SystemProperties.getRmiPort());
         Registry rmiRegistry = LocateRegistry.getRegistry(port);
         remoteServer = (RemoteServer) rmiRegistry.lookup("server");
+    }
+
+    @AfterEach
+    void tearDown() throws IOException {
+        FilesUtil.deleteDirectory(inputDir.getParent());
     }
 
     private void createTestFiles(List<TestFile> files) throws IOException {
@@ -82,9 +87,9 @@ class ApplicationTest {
     private CommandWithArguments createStartCommand() {
         return new CommandWithArguments(
                 Command.START,
-                List.of(inputDir.toString(), outputDir.toString(), TestMapper.class.getName(),
+                List.of(INPUT_NAME, OUTPUT_NAME, TestMapper.class.getName(),
                         TestReducer.class.getName()),
-                "start " + inputDir + " " + outputDir + " " + TestMapper.class.getName() + " "
+                "start " + INPUT_NAME + " " + OUTPUT_NAME + " " + TestMapper.class.getName() + " "
                         + TestReducer.class.getName());
     }
 

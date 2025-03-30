@@ -23,6 +23,10 @@ public class FilesUtil {
         return Path.of(DEFAULT_PUBLIC_DIRECTORY, String.valueOf(processingId));
     }
 
+    public static String getFilesDirectory(String directory) {
+        return Path.of(DEFAULT_PUBLIC_DIRECTORY, directory).toString();
+    }
+
     public static Path getMapFilesDirectory(int processingId) {
         return getBaseNodeDirectory(processingId).resolve("map");
     }
@@ -109,7 +113,7 @@ public class FilesUtil {
         }
     }
 
-    private static void deleteDirectory(Path directory) throws IOException {
+    public static void deleteDirectory(Path directory) throws IOException {
         Files.walkFileTree(directory, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
