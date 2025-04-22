@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,6 +11,10 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
+import xyz.stasiak.javamapreduce.map.PartitionFunction;
+import xyz.stasiak.javamapreduce.rmi.RemoteNodeUnavailableException;
+import xyz.stasiak.javamapreduce.rmi.RemoteRuntimeException;
+import xyz.stasiak.javamapreduce.rmi.RmiUtil;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 import xyz.stasiak.javamapreduce.util.RuntimeUtil;
@@ -23,9 +27,9 @@ class WorkDistributor {
 
     private record NodeInfo(String address, int processingPower) {
         static NodeInfo fromRemoteNode(String address) throws RemoteException, RemoteNodeUnavailableException {
-            Integer result = RmiUtil.call(address, (remoteNode) -> {
+            Integer result = RmiUtil.call(address, (remoteController) -> {
                 try {
-                    return Integer.valueOf(remoteNode.getProcessingPower());
+                    return Integer.valueOf(remoteController.getProcessingPower());
                 } catch (RemoteException e) {
                     throw new RemoteRuntimeException(e);
                 }
@@ -49,9 +53,9 @@ class WorkDistributor {
                     activeNodes.add(nodeAddress);
                     continue;
                 }
-                RmiUtil.call(nodeAddress, (remoteNode) -> {
+                RmiUtil.call(nodeAddress, (remoteController) -> {
                     try {
-                        remoteNode.isAlive();
+                        remoteController.isAlive();
                     } catch (RemoteException e) {
                         throw new RemoteRuntimeException(e);
                     }

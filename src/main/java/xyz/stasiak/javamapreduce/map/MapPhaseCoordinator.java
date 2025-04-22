@@ -9,8 +9,8 @@ import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.rmi.CancellationToken;
-import xyz.stasiak.javamapreduce.rmi.ProcessingException;
+import xyz.stasiak.javamapreduce.processing.CancellationToken;
+import xyz.stasiak.javamapreduce.processing.ProcessingException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 

@@ -2,7 +2,7 @@ package xyz.stasiak.javamapreduce.reduce;
 
 import java.nio.file.Path;
 
-import xyz.stasiak.javamapreduce.rmi.CancellationToken;
+import xyz.stasiak.javamapreduce.processing.CancellationToken;
 
 record ReduceTask(
         int processingId,

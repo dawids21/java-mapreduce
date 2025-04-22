@@ -4,19 +4,26 @@ import java.net.MalformedURLException;
 import java.rmi.Naming;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import xyz.stasiak.javamapreduce.processing.ProcessingException;
 
 public class RmiUtil {
 
     private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
-    public static void call(String nodeAddress, Consumer<RemoteNode> consumer)
+    public static void call(String nodeAddress, Consumer<RemoteController> consumer)
             throws RemoteException, RemoteNodeUnavailableException {
         Future<Void> future = EXECUTOR.submit(() -> {
             try {
-                var node = (RemoteNode) Naming.lookup(nodeAddress);
+                var node = (RemoteController) Naming.lookup(nodeAddress);
                 consumer.accept(node);
                 return null;
             } catch (RemoteException | NotBoundException | MalformedURLException e) {
@@ -49,11 +56,11 @@ public class RmiUtil {
         }
     }
 
-    public static <T> T call(String nodeAddress, Function<RemoteNode, T> consumer)
+    public static <T> T call(String nodeAddress, Function<RemoteController, T> consumer)
             throws RemoteException, RemoteNodeUnavailableException {
         Future<T> future = EXECUTOR.submit(() -> {
             try {
-                var node = (RemoteNode) Naming.lookup(nodeAddress);
+                var node = (RemoteController) Naming.lookup(nodeAddress);
                 return consumer.apply(node);
             } catch (RemoteException | NotBoundException | MalformedURLException e) {
                 throw new RemoteNodeUnavailableException(

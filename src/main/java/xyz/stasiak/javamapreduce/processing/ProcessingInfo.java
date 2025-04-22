@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 import java.util.function.Function;
 

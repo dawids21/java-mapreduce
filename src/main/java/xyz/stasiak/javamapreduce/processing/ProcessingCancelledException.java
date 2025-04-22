@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 public class ProcessingCancelledException extends ProcessingException {
     public ProcessingCancelledException(int processingId, String message) {

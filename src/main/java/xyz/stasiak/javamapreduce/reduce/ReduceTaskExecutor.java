@@ -1,14 +1,18 @@
 package xyz.stasiak.javamapreduce.reduce;
 
-import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
-import xyz.stasiak.javamapreduce.util.KeyValue;
-import xyz.stasiak.javamapreduce.util.LoggingUtil;
-
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedWriter;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.logging.Logger;
+
+import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
+import xyz.stasiak.javamapreduce.util.KeyValue;
+import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 class ReduceTaskExecutor {
     private static final Logger LOGGER = Logger.getLogger(ReduceTaskExecutor.class.getName());

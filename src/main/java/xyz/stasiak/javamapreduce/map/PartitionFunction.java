@@ -1,11 +1,11 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.map;
 
 import java.io.Serializable;
 import java.util.function.Function;
 
-record PartitionFunction(int partitionCount) implements Function<String, Integer>, Serializable {
+public record PartitionFunction(int partitionCount) implements Function<String, Integer>, Serializable {
 
-    PartitionFunction {
+    public PartitionFunction {
         if (partitionCount <= 0) {
             throw new IllegalArgumentException("Partition count must be positive");
         }

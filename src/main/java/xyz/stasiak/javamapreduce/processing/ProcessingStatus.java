@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 public enum ProcessingStatus {
     NOT_FOUND,

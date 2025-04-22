@@ -1,29 +1,30 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.Random;
 
+import xyz.stasiak.javamapreduce.rmi.RemoteServer;
 import xyz.stasiak.javamapreduce.util.SystemProperties;
 
-public class RemoteServerImpl extends UnicastRemoteObject implements RemoteServer {
+public class Server extends UnicastRemoteObject implements RemoteServer {
 
-    private final RemoteNodeImpl remoteNode;
+    private final Controller controller;
 
-    public RemoteServerImpl(RemoteNodeImpl remoteNode) throws RemoteException {
+    public Server(Controller controller) throws RemoteException {
         super(Integer.parseInt(SystemProperties.getRmiPort()) + 2);
-        this.remoteNode = remoteNode;
+        this.controller = controller;
     }
 
     @Override
     public int startProcessing(ProcessingParameters parameters) throws RemoteException {
         var processingId = new Random().nextInt(1_000_000_000);
-        remoteNode.startProcessing(processingId, parameters);
+        controller.startProcessing(processingId, parameters);
         return processingId;
     }
 
     @Override
     public ProcessingStatus getProcessingStatus(int processingId) throws RemoteException {
-        return remoteNode.getProcessingStatus(processingId);
+        return controller.getProcessingStatus(processingId);
     }
 }

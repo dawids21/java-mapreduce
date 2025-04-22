@@ -5,7 +5,9 @@ import java.rmi.RemoteException;
 import java.util.List;
 import java.util.function.Function;
 
-public interface RemoteNode extends Remote {
+import xyz.stasiak.javamapreduce.processing.ProcessingParameters;
+
+public interface RemoteController extends Remote {
 
     void remoteStartNodeProcessing(int processingId, ProcessingParameters parameters,
             Function<String, Integer> partitionFunction, String masterNode) throws RemoteException;

@@ -3,7 +3,7 @@ package xyz.stasiak.javamapreduce.reduce;
 import java.nio.file.Path;
 import java.util.List;
 
-import xyz.stasiak.javamapreduce.rmi.CancellationToken;
+import xyz.stasiak.javamapreduce.processing.CancellationToken;
 
 record MergeTask(
         int processingId,

@@ -3,7 +3,7 @@ package xyz.stasiak.javamapreduce.map;
 import java.nio.file.Path;
 import java.util.function.Function;
 
-import xyz.stasiak.javamapreduce.rmi.CancellationToken;
+import xyz.stasiak.javamapreduce.processing.CancellationToken;
 
 record PartitionTask(
         int processingId,

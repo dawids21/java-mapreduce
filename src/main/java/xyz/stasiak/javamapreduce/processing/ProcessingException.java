@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 public class ProcessingException extends RuntimeException {
     public ProcessingException(String message) {

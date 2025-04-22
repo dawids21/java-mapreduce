@@ -1,13 +1,18 @@
 package xyz.stasiak.javamapreduce.reduce;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-import xyz.stasiak.javamapreduce.rmi.ProcessingCancelledException;
+import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.KeyValue;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 

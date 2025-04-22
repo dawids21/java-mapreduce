@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicBoolean;

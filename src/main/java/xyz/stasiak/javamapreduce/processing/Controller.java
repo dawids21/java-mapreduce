@@ -1,4 +1,4 @@
-package xyz.stasiak.javamapreduce.rmi;
+package xyz.stasiak.javamapreduce.processing;
 
 import java.io.IOException;
 import java.rmi.RemoteException;
@@ -16,14 +16,18 @@ import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.map.MapPhaseCoordinator;
 import xyz.stasiak.javamapreduce.reduce.ReducePhaseCoordinator;
+import xyz.stasiak.javamapreduce.rmi.RemoteController;
+import xyz.stasiak.javamapreduce.rmi.RemoteNodeUnavailableException;
+import xyz.stasiak.javamapreduce.rmi.RemoteRuntimeException;
+import xyz.stasiak.javamapreduce.rmi.RmiUtil;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 import xyz.stasiak.javamapreduce.util.RuntimeUtil;
 import xyz.stasiak.javamapreduce.util.SystemProperties;
 
-public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
+public class Controller extends UnicastRemoteObject implements RemoteController {
 
-    private static final Logger LOGGER = Logger.getLogger(RemoteNodeImpl.class.getSimpleName());
+    private static final Logger LOGGER = Logger.getLogger(Controller.class.getSimpleName());
     private static final String NODE_ADDRESS = SystemProperties.getNodeAddress();
 
     private final Map<Integer, ProcessingState> processingStates;
@@ -32,7 +36,7 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
     private final ScheduledExecutorService healthCheckExecutor = Executors.newSingleThreadScheduledExecutor();
 
-    public RemoteNodeImpl() throws RemoteException {
+    public Controller() throws RemoteException {
         super(Integer.parseInt(SystemProperties.getRmiPort()) + 1);
         this.processingStates = new ConcurrentHashMap<>();
         this.processingInfos = new ConcurrentHashMap<>();
@@ -72,11 +76,11 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     startMapPhase(processingId, files);
                 } else {
                     try {
-                        RmiUtil.call(node, (remoteNode) -> {
+                        RmiUtil.call(node, (remoteController) -> {
                             try {
-                                remoteNode.remoteStartNodeProcessing(processingId, parameters, partitionFunction,
+                                remoteController.remoteStartNodeProcessing(processingId, parameters, partitionFunction,
                                         NODE_ADDRESS);
-                                remoteNode.remoteStartMapPhase(processingId, files);
+                                remoteController.remoteStartMapPhase(processingId, files);
                             } catch (RemoteException e) {
                                 throw new RemoteRuntimeException(e);
                             }
@@ -142,9 +146,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 finishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
             } else {
                 try {
-                    RmiUtil.call(masterNode, (remoteNode) -> {
+                    RmiUtil.call(masterNode, (remoteController) -> {
                         try {
-                            remoteNode.remoteFinishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
+                            remoteController.remoteFinishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
                         } catch (RemoteException e) {
                             throw new RemoteRuntimeException(e);
                         }
@@ -166,9 +170,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     } else {
                         cleanup(processingId);
                         try {
-                            RmiUtil.call(masterNode, (remoteNode) -> {
+                            RmiUtil.call(masterNode, (remoteController) -> {
                                 try {
-                                    remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
+                                    remoteController.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
                                 } catch (RemoteException e2) {
                                     throw new RemoteRuntimeException(e2);
                                 }
@@ -197,9 +201,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                 cleanup(processingId);
                             } else {
                                 try {
-                                    RmiUtil.call(node, (remoteNode) -> {
+                                    RmiUtil.call(node, (remoteController) -> {
                                         try {
-                                            remoteNode.remoteCleanup(processingId);
+                                            remoteController.remoteCleanup(processingId);
                                         } catch (RemoteException e) {
                                             throw new RemoteRuntimeException(e);
                                         }
@@ -234,9 +238,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                     startReducePhase(processingId, partitions);
                                 } else {
                                     try {
-                                        RmiUtil.call(activeNode, (remoteNode) -> {
+                                        RmiUtil.call(activeNode, (remoteController) -> {
                                             try {
-                                                remoteNode.remoteStartReducePhase(processingId, partitions);
+                                                remoteController.remoteStartReducePhase(processingId, partitions);
                                             } catch (RemoteException e) {
                                                 throw new RemoteRuntimeException(e);
                                             }
@@ -284,9 +288,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 finishReducePhase(processingId, NODE_ADDRESS, result.processedPartitions());
             } else {
                 try {
-                    RmiUtil.call(masterNode, (remoteNode) -> {
+                    RmiUtil.call(masterNode, (remoteController) -> {
                         try {
-                            remoteNode.remoteFinishReducePhase(processingId, NODE_ADDRESS,
+                            remoteController.remoteFinishReducePhase(processingId, NODE_ADDRESS,
                                     result.processedPartitions());
                         } catch (RemoteException e) {
                             throw new RemoteRuntimeException(e);
@@ -309,9 +313,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     } else {
                         cleanup(processingId);
                         try {
-                            RmiUtil.call(masterNode, (remoteNode) -> {
+                            RmiUtil.call(masterNode, (remoteController) -> {
                                 try {
-                                    remoteNode.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
+                                    remoteController.remoteHandleNodeFailure(processingId, NODE_ADDRESS);
                                 } catch (RemoteException e2) {
                                     throw new RemoteRuntimeException(e2);
                                 }
@@ -340,9 +344,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                 cleanup(processingId);
                             } else {
                                 try {
-                                    RmiUtil.call(node, (remoteNode) -> {
+                                    RmiUtil.call(node, (remoteController) -> {
                                         try {
-                                            remoteNode.remoteCleanup(processingId);
+                                            remoteController.remoteCleanup(processingId);
                                         } catch (RemoteException e) {
                                             throw new RemoteRuntimeException(e);
                                         }
@@ -364,9 +368,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                     finishProcessing(processingId);
                                 } else {
                                     try {
-                                        RmiUtil.call(activeNode, (remoteNode) -> {
+                                        RmiUtil.call(activeNode, (remoteController) -> {
                                             try {
-                                                remoteNode.remoteFinishProcessing(processingId);
+                                                remoteController.remoteFinishProcessing(processingId);
                                             } catch (RemoteException e) {
                                                 throw new RemoteRuntimeException(e);
                                             }
@@ -417,9 +421,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                         startMapPhase(processingId, files);
                                     } else {
                                         try {
-                                            RmiUtil.call(node, (remoteNode) -> {
+                                            RmiUtil.call(node, (remoteController) -> {
                                                 try {
-                                                    remoteNode.remoteStartMapPhase(processingId, files);
+                                                    remoteController.remoteStartMapPhase(processingId, files);
                                                 } catch (RemoteException e) {
                                                     throw new RemoteRuntimeException(e);
                                                 }
@@ -443,9 +447,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                                         startReducePhase(processingId, partitions);
                                     } else {
                                         try {
-                                            RmiUtil.call(node, (remoteNode) -> {
+                                            RmiUtil.call(node, (remoteController) -> {
                                                 try {
-                                                    remoteNode.remoteStartReducePhase(processingId, partitions);
+                                                    remoteController.remoteStartReducePhase(processingId, partitions);
                                                 } catch (RemoteException e) {
                                                     throw new RemoteRuntimeException(e);
                                                 }
@@ -499,9 +503,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                     cleanup(processingId);
                 } else {
                     try {
-                        RmiUtil.call(node, (remoteNode) -> {
+                        RmiUtil.call(node, (remoteController) -> {
                             try {
-                                remoteNode.remoteCleanup(processingId);
+                                remoteController.remoteCleanup(processingId);
                             } catch (RemoteException e) {
                                 throw new RemoteRuntimeException(e);
                             }
@@ -571,9 +575,9 @@ public class RemoteNodeImpl extends UnicastRemoteObject implements RemoteNode {
                 .filter(node -> !node.equals(NODE_ADDRESS))
                 .forEach(node -> {
                     try {
-                        RmiUtil.call(node, (remoteNode) -> {
+                        RmiUtil.call(node, (remoteController) -> {
                             try {
-                                remoteNode.isAlive();
+                                remoteController.isAlive();
                             } catch (RemoteException e) {
                                 throw new RemoteRuntimeException(e);
                             }
