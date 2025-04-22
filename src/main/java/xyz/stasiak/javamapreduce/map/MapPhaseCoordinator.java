@@ -40,10 +40,10 @@ public class MapPhaseCoordinator {
         LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                 "Starting map phase with files: %s".formatted(files));
 
-        var attempt = 0;
+        var remainingAttempts = MAX_RETRIES;
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            while (attempt <= MAX_RETRIES) {
+            while (remainingAttempts >= 0) {
                 cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
                 var result = processFiles(files, executor);
@@ -58,7 +58,7 @@ public class MapPhaseCoordinator {
 
                 LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                         "Retrying map phase for all files");
-                attempt++;
+                remainingAttempts--;
             }
 
             LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Map phase failed");

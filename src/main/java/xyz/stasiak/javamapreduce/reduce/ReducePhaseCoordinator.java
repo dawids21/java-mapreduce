@@ -40,7 +40,7 @@ public class ReducePhaseCoordinator {
         LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                 "Starting reduce phase with partitions: %s".formatted(partitions));
 
-        var attempt = 0;
+        var remainingAttempts = MAX_RETRIES;
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
@@ -59,7 +59,7 @@ public class ReducePhaseCoordinator {
                 partitionFiles.put(partition, files);
             }
 
-            while (attempt <= MAX_RETRIES) {
+            while (remainingAttempts >= 0) {
                 cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
                 var result = processPartitions(partitions, partitionFiles, executor);
@@ -72,7 +72,7 @@ public class ReducePhaseCoordinator {
 
                 LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                         "Retrying reduce phase for failed partitions");
-                attempt++;
+                remainingAttempts--;
             }
 
             LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Reduce phase failed");
