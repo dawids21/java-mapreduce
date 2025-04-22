@@ -25,7 +25,6 @@ public class ReducePhaseCoordinator {
     private final String reducerClassName;
     private final List<Integer> partitions;
     private final Path outputDirectory;
-    private final ExecutorService executor;
     private final CancellationToken cancellationToken;
 
     public ReducePhaseCoordinator(int processingId, String reducerClassName, List<Integer> partitions,
@@ -34,7 +33,6 @@ public class ReducePhaseCoordinator {
         this.reducerClassName = reducerClassName;
         this.partitions = partitions;
         this.outputDirectory = Path.of(outputDirectory);
-        this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.cancellationToken = cancellationToken;
     }
 
@@ -43,7 +41,7 @@ public class ReducePhaseCoordinator {
                 "Starting reduce phase with partitions: %s".formatted(partitions));
 
         var attempt = 0;
-        try {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
             var partitionFiles = new HashMap<Integer, List<Path>>();
@@ -64,7 +62,7 @@ public class ReducePhaseCoordinator {
             while (attempt <= MAX_RETRIES) {
                 cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
-                var result = processPartitions(partitions, partitionFiles);
+                var result = processPartitions(partitions, partitionFiles, executor);
 
                 if (result.failedPartitions().isEmpty()) {
                     LoggingUtil.logInfo(LOGGER, processingId, getClass(),
@@ -79,8 +77,6 @@ public class ReducePhaseCoordinator {
 
             LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Reduce phase failed");
             throw new ProcessingException("Reduce phase failed");
-        } finally {
-            executor.close();
         }
     }
 
@@ -88,7 +84,7 @@ public class ReducePhaseCoordinator {
     }
 
     private ProcessingResult processPartitions(List<Integer> partitionsToProcess,
-            Map<Integer, List<Path>> partitionFiles) {
+            Map<Integer, List<Path>> partitionFiles, ExecutorService executor) {
         cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
         var reducer = ReducerFactory.createReducer(reducerClassName);

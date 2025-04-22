@@ -22,7 +22,6 @@ public class MapPhaseCoordinator {
     private final Path inputDirectory;
     private final List<Path> files;
     private final Function<String, Integer> partitionFunction;
-    private final ExecutorService executor;
     private final CancellationToken cancellationToken;
 
     public MapPhaseCoordinator(int processingId, String mapperClassName, String inputDirectory, List<String> files,
@@ -34,7 +33,6 @@ public class MapPhaseCoordinator {
                 .map(Path::of)
                 .toList();
         this.partitionFunction = partitionFunction;
-        this.executor = Executors.newVirtualThreadPerTaskExecutor();
         this.cancellationToken = cancellationToken;
     }
 
@@ -44,11 +42,11 @@ public class MapPhaseCoordinator {
 
         var attempt = 0;
 
-        try {
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             while (attempt <= MAX_RETRIES) {
                 cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
-                var result = processFiles(files);
+                var result = processFiles(files, executor);
 
                 if (result.failedFiles().isEmpty()) {
                     LoggingUtil.logInfo(LOGGER, processingId, getClass(),
@@ -65,15 +63,13 @@ public class MapPhaseCoordinator {
 
             LoggingUtil.logSevere(LOGGER, processingId, getClass(), "Map phase failed");
             throw new ProcessingException("Map phase failed");
-        } finally {
-            executor.close();
         }
     }
 
     private record ProcessingResult(List<Path> processedFiles, List<Path> failedFiles) {
     }
 
-    private ProcessingResult processFiles(List<Path> filesToProcess) {
+    private ProcessingResult processFiles(List<Path> filesToProcess, ExecutorService executor) {
         cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
         var mapper = MapperFactory.createMapper(mapperClassName);
@@ -90,7 +86,7 @@ public class MapPhaseCoordinator {
             var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
                     partitionFilesDirectory, partitionFunction, cancellationToken);
             var partitionTaskRunner = new PartitionTaskRunner(partitionTask);
-            futures.add(this.executor.submit(() -> {
+            futures.add(executor.submit(() -> {
                 var mapResult = mapTaskRunner.execute();
                 if (mapResult.requiresRetry()) {
                     return MapPartitionResult.failure(mapResult.error());
