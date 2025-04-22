@@ -107,18 +107,18 @@ public class ReducePhaseCoordinator {
             if (!inputFiles.isEmpty()) {
                 var mergeTask = MergeTask.create(processingId, partitionId, inputPaths, mergeFilesDirectory,
                         cancellationToken);
-                var mergeTaskExecutor = new MergeTaskExecutor(mergeTask);
+                var mergeTaskRunner = new MergeTaskRunner(mergeTask);
                 var reduceTask = ReduceTask.create(processingId,
                         mergeFilesDirectory.resolve(String.valueOf(partitionId)),
                         outputDirectory, reducer, cancellationToken);
-                var reduceTaskExecutor = new ReduceTaskExecutor(reduceTask);
+                var reduceTaskRunner = new ReduceTaskRunner(reduceTask);
 
                 futures.add(executor.submit(() -> {
-                    var mergeResult = mergeTaskExecutor.execute();
+                    var mergeResult = mergeTaskRunner.execute();
                     if (!mergeResult.isSuccess()) {
                         return MergeReduceResult.failure(mergeResult.error());
                     }
-                    var reduceResult = reduceTaskExecutor.execute();
+                    var reduceResult = reduceTaskRunner.execute();
                     if (!reduceResult.isSuccess()) {
                         return MergeReduceResult.failure(reduceResult.error());
                     }

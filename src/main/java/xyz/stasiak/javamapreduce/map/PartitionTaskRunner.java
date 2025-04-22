@@ -17,11 +17,11 @@ import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.KeyValue;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
-class PartitionTaskExecutor {
-    private static final Logger LOGGER = Logger.getLogger(PartitionTaskExecutor.class.getName());
+class PartitionTaskRunner {
+    private static final Logger LOGGER = Logger.getLogger(PartitionTaskRunner.class.getName());
     private final PartitionTask task;
 
-    PartitionTaskExecutor(PartitionTask task) {
+    PartitionTaskRunner(PartitionTask task) {
         this.task = task;
     }
 

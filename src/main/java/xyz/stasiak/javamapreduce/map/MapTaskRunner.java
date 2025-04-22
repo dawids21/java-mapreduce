@@ -11,11 +11,11 @@ import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
-class MapTaskExecutor {
-    private static final Logger LOGGER = Logger.getLogger(MapTaskExecutor.class.getName());
+class MapTaskRunner {
+    private static final Logger LOGGER = Logger.getLogger(MapTaskRunner.class.getName());
     private final MapTask task;
 
-    MapTaskExecutor(MapTask task) {
+    MapTaskRunner(MapTask task) {
         this.task = task;
     }
 

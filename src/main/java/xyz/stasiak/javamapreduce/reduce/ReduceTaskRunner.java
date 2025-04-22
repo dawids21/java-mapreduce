@@ -14,11 +14,11 @@ import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.KeyValue;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
-class ReduceTaskExecutor {
-    private static final Logger LOGGER = Logger.getLogger(ReduceTaskExecutor.class.getName());
+class ReduceTaskRunner {
+    private static final Logger LOGGER = Logger.getLogger(ReduceTaskRunner.class.getName());
     private final ReduceTask task;
 
-    ReduceTaskExecutor(ReduceTask task) {
+    ReduceTaskRunner(ReduceTask task) {
         this.task = task;
     }
 

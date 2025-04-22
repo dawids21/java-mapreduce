@@ -86,16 +86,16 @@ public class MapPhaseCoordinator {
 
             var mapTask = MapTask.create(processingId, inputDirectory.resolve(file), mapFilesDirectory, mapper,
                     cancellationToken);
-            var mapTaskExecutor = new MapTaskExecutor(mapTask);
+            var mapTaskRunner = new MapTaskRunner(mapTask);
             var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
                     partitionFilesDirectory, partitionFunction, cancellationToken);
-            var partitionTaskExecutor = new PartitionTaskExecutor(partitionTask);
+            var partitionTaskRunner = new PartitionTaskRunner(partitionTask);
             futures.add(this.executor.submit(() -> {
-                var mapResult = mapTaskExecutor.execute();
+                var mapResult = mapTaskRunner.execute();
                 if (mapResult.requiresRetry()) {
                     return MapPartitionResult.failure(mapResult.error());
                 }
-                var partitionResult = partitionTaskExecutor.execute();
+                var partitionResult = partitionTaskRunner.execute();
                 if (partitionResult.requiresRetry()) {
                     return MapPartitionResult.failure(partitionResult.error());
                 }

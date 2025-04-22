@@ -16,8 +16,8 @@ import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.KeyValue;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
-class MergeTaskExecutor {
-    private static final Logger LOGGER = Logger.getLogger(MergeTaskExecutor.class.getName());
+class MergeTaskRunner {
+    private static final Logger LOGGER = Logger.getLogger(MergeTaskRunner.class.getName());
     private final MergeTask task;
 
     private record FileHandle(ObjectInputStream reader, KeyValue currentKeyValue, boolean isFinished) {
@@ -30,7 +30,7 @@ class MergeTaskExecutor {
         }
     }
 
-    MergeTaskExecutor(MergeTask task) {
+    MergeTaskRunner(MergeTask task) {
         this.task = task;
     }
 
