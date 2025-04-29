@@ -532,7 +532,7 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
             }
             var processingInfo = processingInfos.remove(processingId);
 
-            processingInfo.cancel();
+            processingInfo.cancellationToken().cancel();
 
             if (NODE_ADDRESS.equals(processingInfo.masterNode())) {
                 try {
@@ -582,7 +582,7 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
                                 throw new RemoteRuntimeException(e);
                             }
                         });
-                    } catch (RemoteException | RemoteNodeUnavailableException e) {
+                    } catch (RemoteException | RemoteRuntimeException | RemoteNodeUnavailableException e) {
                         processingInfos.forEach((processingId, processingInfo) -> {
                             if (processingInfo.masterNode().equals(node)) {
                                 cleanup(processingId);

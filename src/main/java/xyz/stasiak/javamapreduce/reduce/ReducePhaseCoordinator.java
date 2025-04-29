@@ -19,7 +19,7 @@ import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 public class ReducePhaseCoordinator {
     private static final Logger LOGGER = Logger.getLogger(ReducePhaseCoordinator.class.getName());
-    private static final int MAX_RETRIES = 1;
+    private static final int MAX_RETRIES = 2;
 
     private final int processingId;
     private final String reducerClassName;
@@ -59,7 +59,7 @@ public class ReducePhaseCoordinator {
                 partitionFiles.put(partition, files);
             }
 
-            while (remainingAttempts >= 0) {
+            while (remainingAttempts > 0) {
                 cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
                 var result = processPartitions(partitions, partitionFiles, executor);

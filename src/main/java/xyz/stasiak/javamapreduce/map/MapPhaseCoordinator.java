@@ -16,7 +16,7 @@ import xyz.stasiak.javamapreduce.util.LoggingUtil;
 
 public class MapPhaseCoordinator {
     private static final Logger LOGGER = Logger.getLogger(MapPhaseCoordinator.class.getName());
-    private static final int MAX_RETRIES = 1;
+    private static final int MAX_RETRIES = 2;
     private final int processingId;
     private final String mapperClassName;
     private final Path inputDirectory;
@@ -43,7 +43,7 @@ public class MapPhaseCoordinator {
         var remainingAttempts = MAX_RETRIES;
 
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            while (remainingAttempts >= 0) {
+            while (remainingAttempts > 0) {
                 cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
                 var result = processFiles(files, executor);

@@ -14,18 +14,4 @@ record ProcessingInfo(
                 return new ProcessingInfo(processingId, parameters, masterNode, partitionFunction,
                                 CancellationToken.create());
         }
-
-        void cancel() {
-                cancellationToken.cancel();
-        }
-
-        boolean isCancelled() {
-                return cancellationToken.isCancelled();
-        }
-
-        void throwIfCancelled() {
-                if (isCancelled()) {
-                        throw new ProcessingCancelledException(processingId, "Processing cancelled");
-                }
-        }
 }

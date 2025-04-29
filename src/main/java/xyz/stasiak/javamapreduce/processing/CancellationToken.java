@@ -13,12 +13,8 @@ public record CancellationToken(AtomicBoolean cancelled) implements Serializable
         cancelled.set(true);
     }
 
-    boolean isCancelled() {
-        return cancelled.get();
-    }
-
     public void throwIfCancelled(int processingId, String message) {
-        if (isCancelled()) {
+        if (cancelled.get()) {
             throw new ProcessingCancelledException(processingId, message);
         }
     }
