@@ -33,11 +33,7 @@ public class RmiUtil {
         });
 
         try {
-            future.get(30, TimeUnit.SECONDS);
-        } catch (TimeoutException e) {
-            future.cancel(true);
-            throw new RemoteNodeUnavailableException(
-                    "Connection to node %s timed out after 30 seconds".formatted(nodeAddress));
+            future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RemoteNodeUnavailableException(
