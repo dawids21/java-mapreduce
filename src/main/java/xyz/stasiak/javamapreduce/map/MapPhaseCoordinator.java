@@ -86,7 +86,7 @@ public class MapPhaseCoordinator {
                     partitionFilesDirectory, partitionFunction, cancellationToken);
             var partitionTaskRunner = new PartitionTaskRunner(partitionTask);
             futures.add(executor.submit(() -> {
-                var mapResult = mapTaskRunner.execute(Math.random() < 0.2);
+                var mapResult = mapTaskRunner.execute();
                 if (mapResult.requiresRetry()) {
                     return MapPartitionResult.failure(mapResult.error());
                 }

@@ -22,7 +22,7 @@ class ReduceTaskRunner {
         this.task = task;
     }
 
-    ReduceResult execute(boolean injectException) {
+    ReduceResult execute() {
         var currentTask = task;
         ReduceResult result = null;
 
@@ -32,7 +32,7 @@ class ReduceTaskRunner {
                 LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
                         "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = currentTask.outputDirectory().resolve(currentTask.inputFile().getFileName());
-                processFile(currentTask.inputFile(), outputFile, injectException);
+                processFile(currentTask.inputFile(), outputFile);
                 result = ReduceResult.success(outputFile);
                 break;
             } catch (ProcessingCancelledException e) {
@@ -45,29 +45,27 @@ class ReduceTaskRunner {
                                 currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
                 result = ReduceResult.failure(e);
-                injectException = Math.random() < 0.2;
             }
         }
 
         return result;
     }
 
-    private void processFile(Path inputFile, Path outputFile, boolean injectException)
-            throws IOException, ClassNotFoundException {
+    private void processFile(Path inputFile, Path outputFile) throws IOException, ClassNotFoundException {
         try (var inputStream = Files.newInputStream(inputFile);
                 var bufferedInputStream = new BufferedInputStream(inputStream, 1024 * 1024);
                 var objectReader = new ObjectInputStream(bufferedInputStream);
                 var writer = Files.newBufferedWriter(outputFile)) {
 
-            processObjects(objectReader, writer, injectException);
+            processObjects(objectReader, writer);
         }
     }
 
-    private void processObjects(ObjectInputStream reader, BufferedWriter writer, boolean injectException)
+    private void processObjects(ObjectInputStream reader, BufferedWriter writer)
             throws IOException, ClassNotFoundException {
         String currentKey = null;
         var currentValues = new ArrayList<String>();
-
+        boolean injectException = Math.random() < 0.2;
         try {
             while (true) {
                 task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");

@@ -113,7 +113,7 @@ public class ReducePhaseCoordinator {
                     if (!mergeResult.isSuccess()) {
                         return MergeReduceResult.failure(mergeResult.error());
                     }
-                    var reduceResult = reduceTaskRunner.execute(Math.random() < 0.2);
+                    var reduceResult = reduceTaskRunner.execute();
                     if (!reduceResult.isSuccess()) {
                         return MergeReduceResult.failure(reduceResult.error());
                     }
