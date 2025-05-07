@@ -90,7 +90,6 @@ public class ReducePhaseCoordinator {
         var reducer = ReducerFactory.createReducer(reducerClassName);
         var futures = new ArrayList<Future<MergeReduceResult>>();
         var mergeFilesDirectory = FilesUtil.getMergeFilesDirectory(processingId);
-
         for (var partitionId : partitionsToProcess) {
             cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
@@ -114,7 +113,7 @@ public class ReducePhaseCoordinator {
                     if (!mergeResult.isSuccess()) {
                         return MergeReduceResult.failure(mergeResult.error());
                     }
-                    var reduceResult = reduceTaskRunner.execute();
+                    var reduceResult = reduceTaskRunner.execute(Math.random() < 0.2);
                     if (!reduceResult.isSuccess()) {
                         return MergeReduceResult.failure(reduceResult.error());
                     }

@@ -76,7 +76,6 @@ public class MapPhaseCoordinator {
         var mapFilesDirectory = FilesUtil.getMapFilesDirectory(processingId);
         var partitionFilesDirectory = FilesUtil.getPartitionFilesDirectory(processingId);
         var futures = new ArrayList<Future<MapPartitionResult>>();
-
         for (var file : filesToProcess) {
             cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
@@ -87,7 +86,7 @@ public class MapPhaseCoordinator {
                     partitionFilesDirectory, partitionFunction, cancellationToken);
             var partitionTaskRunner = new PartitionTaskRunner(partitionTask);
             futures.add(executor.submit(() -> {
-                var mapResult = mapTaskRunner.execute();
+                var mapResult = mapTaskRunner.execute(Math.random() < 0.2);
                 if (mapResult.requiresRetry()) {
                     return MapPartitionResult.failure(mapResult.error());
                 }
