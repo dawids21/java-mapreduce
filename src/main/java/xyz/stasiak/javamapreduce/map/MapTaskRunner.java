@@ -10,6 +10,7 @@ import java.util.logging.Logger;
 import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.FilesUtil;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
+import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 class MapTaskRunner {
     private static final Logger LOGGER = Logger.getLogger(MapTaskRunner.class.getName());
@@ -55,9 +56,13 @@ class MapTaskRunner {
                 var bufferedOutputStream = new BufferedOutputStream(outputStream, 1024 * 1024);
                 var objectWriter = new ObjectOutputStream(bufferedOutputStream)) {
             String line;
+            boolean injectException = SystemProperties.injectException();
             while ((line = reader.readLine()) != null) {
                 task.cancellationToken().throwIfCancelled(task.processingId(),
                         "Map task cancelled");
+                if (injectException) {
+                    throw new IOException("Injected exception in map task");
+                }
                 processLine(line, objectWriter);
             }
         }

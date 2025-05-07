@@ -45,6 +45,10 @@ public class SystemProperties {
                 .toList();
     }
 
+    public static boolean injectException() {
+        return Boolean.parseBoolean(getProperty("INJECT_EXCEPTION", "inject.exception"));
+    }
+
     public static double processingPowerMultiplier() {
         return Double.parseDouble(getProperty("PROCESSING_POWER_MULTIPLIER", "processing.power.multiplier"));
     }

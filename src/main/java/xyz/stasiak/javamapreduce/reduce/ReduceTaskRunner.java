@@ -13,6 +13,7 @@ import java.util.logging.Logger;
 import xyz.stasiak.javamapreduce.processing.ProcessingCancelledException;
 import xyz.stasiak.javamapreduce.util.KeyValue;
 import xyz.stasiak.javamapreduce.util.LoggingUtil;
+import xyz.stasiak.javamapreduce.util.SystemProperties;
 
 class ReduceTaskRunner {
     private static final Logger LOGGER = Logger.getLogger(ReduceTaskRunner.class.getName());
@@ -65,10 +66,13 @@ class ReduceTaskRunner {
             throws IOException, ClassNotFoundException {
         String currentKey = null;
         var currentValues = new ArrayList<String>();
-
+        boolean injectException = SystemProperties.injectException();
         try {
             while (true) {
                 task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
+                if (injectException) {
+                    throw new IOException("Injected exception in reduce task");
+                }
 
                 KeyValue keyValue = (KeyValue) reader.readObject();
                 String key = keyValue.key();
