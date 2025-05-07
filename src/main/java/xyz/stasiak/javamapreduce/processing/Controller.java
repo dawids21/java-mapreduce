@@ -79,6 +79,8 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
                     .setFileAssignments(fileAssignments);
             processingStates.put(processingId, processingState);
 
+            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                    "Starting map phase at: " + System.currentTimeMillis());
             activeNodes.forEach(node -> {
                 var files = processingState.fileAssignments().get(node);
                 if (node.equals(NODE_ADDRESS)) {
@@ -142,8 +144,6 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
     private void startMapPhase(int processingId, List<String> files) {
         CompletableFuture.runAsync(() -> {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
-                    "Starting map phase at: " + System.currentTimeMillis());
-            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Starting map phase");
             var processingInfo = processingInfos.get(processingId);
             if (processingInfo == null) {
@@ -155,8 +155,6 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
                     processingInfo.parameters().inputDirectory(), files, processingInfo.partitionFunction(),
                     processingInfo.cancellationToken());
             var result = coordinator.execute();
-            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
-                    "Finished map phase at: " + System.currentTimeMillis());
             var masterNode = processingInfo.masterNode();
             if (masterNode.equals(NODE_ADDRESS)) {
                 finishMapPhase(processingId, NODE_ADDRESS, result.processedFiles());
@@ -234,6 +232,8 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
                         var newState = processingState.addProcessedFiles(processedFiles);
                         if (newState.isMapPhaseCompleted()) {
                             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                                    "Finished map phase at: " + System.currentTimeMillis());
+                            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                                     "Map phase completed on all nodes");
                             try {
                                 FilesUtil.removeEmptyPartitionDirectories(processingId);
@@ -248,6 +248,8 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
                                     processingId, activeNodes);
                             newState = newState.setPartitionAssignments(partitionAssignments)
                                     .updateStatus(ProcessingStatus.REDUCING);
+                            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                                    "Starting reduce phase at: " + System.currentTimeMillis());
                             newState.activeNodes().forEach(activeNode -> {
                                 var partitions = partitionAssignments.get(activeNode);
                                 if (activeNode.equals(NODE_ADDRESS)) {
@@ -289,8 +291,6 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
     private void startReducePhase(int processingId, List<Integer> partitions) {
         CompletableFuture.runAsync(() -> {
             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
-                    "Starting reduce phase at: " + System.currentTimeMillis());
-            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                     "Starting reduce phase");
             var processingInfo = processingInfos.get(processingId);
             if (processingInfo == null) {
@@ -301,8 +301,6 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
             var coordinator = new ReducePhaseCoordinator(processingId, processingInfo.parameters().reducerClassName(),
                     partitions, processingInfo.parameters().outputDirectory(), processingInfo.cancellationToken());
             var result = coordinator.execute();
-            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
-                    "Finished reduce phase at: " + System.currentTimeMillis());
             var masterNode = processingInfo.masterNode();
             if (masterNode.equals(NODE_ADDRESS)) {
                 finishReducePhase(processingId, NODE_ADDRESS, result.processedPartitions());
@@ -380,6 +378,8 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
                         }
                         var newState = processingState.addProcessedPartitions(processedPartitions);
                         if (newState.isReducePhaseCompleted()) {
+                            LoggingUtil.logInfo(LOGGER, processingId, getClass(),
+                                    "Finished reduce phase at: " + System.currentTimeMillis());
                             LoggingUtil.logInfo(LOGGER, processingId, getClass(),
                                     "Reduce phase completed on all nodes");
                             newState = newState.updateStatus(ProcessingStatus.FINISHED);
