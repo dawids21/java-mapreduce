@@ -19,7 +19,7 @@ class MapTaskRunner {
         this.task = task;
     }
 
-    MapResult execute() {
+    MapResult execute(boolean injectException) {
         var currentTask = task;
         MapResult result = null;
 
@@ -30,7 +30,7 @@ class MapTaskRunner {
                         "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = FilesUtil.getMapFilesDirectory(currentTask.processingId())
                         .resolve(currentTask.inputFile().getFileName());
-                processFile(currentTask.inputFile(), outputFile);
+                processFile(currentTask.inputFile(), outputFile, injectException);
                 result = MapResult.success(outputFile);
                 break;
             } catch (ProcessingCancelledException e) {
@@ -43,13 +43,14 @@ class MapTaskRunner {
                                 currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
                 result = MapResult.failure(e);
+                injectException = false;
             }
         }
 
         return result;
     }
 
-    private void processFile(Path inputFile, Path outputFile) throws IOException {
+    private void processFile(Path inputFile, Path outputFile, boolean injectException) throws IOException {
         try (var reader = Files.newBufferedReader(inputFile);
                 var outputStream = Files.newOutputStream(outputFile);
                 var bufferedOutputStream = new BufferedOutputStream(outputStream, 1024 * 1024);
@@ -58,6 +59,9 @@ class MapTaskRunner {
             while ((line = reader.readLine()) != null) {
                 task.cancellationToken().throwIfCancelled(task.processingId(),
                         "Map task cancelled");
+                if (injectException) {
+                    throw new IOException("Injected exception in map task");
+                }
                 processLine(line, objectWriter);
             }
         }

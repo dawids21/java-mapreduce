@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import xyz.stasiak.javamapreduce.processing.CancellationToken;
@@ -90,7 +92,7 @@ public class ReducePhaseCoordinator {
         var reducer = ReducerFactory.createReducer(reducerClassName);
         var futures = new ArrayList<Future<MergeReduceResult>>();
         var mergeFilesDirectory = FilesUtil.getMergeFilesDirectory(processingId);
-
+        var counter = new AtomicInteger(0);
         for (var partitionId : partitionsToProcess) {
             cancellationToken.throwIfCancelled(processingId, "Reduce phase cancelled");
 
@@ -109,12 +111,18 @@ public class ReducePhaseCoordinator {
                         outputDirectory, reducer, cancellationToken);
                 var reduceTaskRunner = new ReduceTaskRunner(reduceTask);
 
+                var i = counter.incrementAndGet();
+                var injectException = new AtomicBoolean(false);
+                if (i == 5) {
+                    counter.set(0);
+                    injectException.set(true);
+                }
                 futures.add(executor.submit(() -> {
                     var mergeResult = mergeTaskRunner.execute();
                     if (!mergeResult.isSuccess()) {
                         return MergeReduceResult.failure(mergeResult.error());
                     }
-                    var reduceResult = reduceTaskRunner.execute();
+                    var reduceResult = reduceTaskRunner.execute(injectException.get());
                     if (!reduceResult.isSuccess()) {
                         return MergeReduceResult.failure(reduceResult.error());
                     }

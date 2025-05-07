@@ -22,7 +22,7 @@ class ReduceTaskRunner {
         this.task = task;
     }
 
-    ReduceResult execute() {
+    ReduceResult execute(boolean injectException) {
         var currentTask = task;
         ReduceResult result = null;
 
@@ -32,7 +32,7 @@ class ReduceTaskRunner {
                 LoggingUtil.logInfo(LOGGER, currentTask.processingId(), getClass(),
                         "Processing file: %s".formatted(currentTask.inputFile()));
                 var outputFile = currentTask.outputDirectory().resolve(currentTask.inputFile().getFileName());
-                processFile(currentTask.inputFile(), outputFile);
+                processFile(currentTask.inputFile(), outputFile, injectException);
                 result = ReduceResult.success(outputFile);
                 break;
             } catch (ProcessingCancelledException e) {
@@ -45,23 +45,25 @@ class ReduceTaskRunner {
                                 currentTask.maxRetries() - 1));
                 currentTask = currentTask.withIncrementedRetries();
                 result = ReduceResult.failure(e);
+                injectException = false;
             }
         }
 
         return result;
     }
 
-    private void processFile(Path inputFile, Path outputFile) throws IOException, ClassNotFoundException {
+    private void processFile(Path inputFile, Path outputFile, boolean injectException)
+            throws IOException, ClassNotFoundException {
         try (var inputStream = Files.newInputStream(inputFile);
                 var bufferedInputStream = new BufferedInputStream(inputStream, 1024 * 1024);
                 var objectReader = new ObjectInputStream(bufferedInputStream);
                 var writer = Files.newBufferedWriter(outputFile)) {
 
-            processObjects(objectReader, writer);
+            processObjects(objectReader, writer, injectException);
         }
     }
 
-    private void processObjects(ObjectInputStream reader, BufferedWriter writer)
+    private void processObjects(ObjectInputStream reader, BufferedWriter writer, boolean injectException)
             throws IOException, ClassNotFoundException {
         String currentKey = null;
         var currentValues = new ArrayList<String>();
@@ -69,6 +71,9 @@ class ReduceTaskRunner {
         try {
             while (true) {
                 task.cancellationToken().throwIfCancelled(task.processingId(), "Reduce task cancelled");
+                if (injectException) {
+                    throw new IOException("Injected exception in reduce task");
+                }
 
                 KeyValue keyValue = (KeyValue) reader.readObject();
                 String key = keyValue.key();

@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.logging.Logger;
 
@@ -76,7 +78,7 @@ public class MapPhaseCoordinator {
         var mapFilesDirectory = FilesUtil.getMapFilesDirectory(processingId);
         var partitionFilesDirectory = FilesUtil.getPartitionFilesDirectory(processingId);
         var futures = new ArrayList<Future<MapPartitionResult>>();
-
+        var counter = new AtomicInteger(0);
         for (var file : filesToProcess) {
             cancellationToken.throwIfCancelled(processingId, "Map phase cancelled");
 
@@ -86,8 +88,14 @@ public class MapPhaseCoordinator {
             var partitionTask = PartitionTask.create(processingId, mapFilesDirectory.resolve(file),
                     partitionFilesDirectory, partitionFunction, cancellationToken);
             var partitionTaskRunner = new PartitionTaskRunner(partitionTask);
+            var i = counter.incrementAndGet();
+            var injectException = new AtomicBoolean(false);
+            if (i == 5) {
+                counter.set(0);
+                injectException.set(true);
+            }
             futures.add(executor.submit(() -> {
-                var mapResult = mapTaskRunner.execute();
+                var mapResult = mapTaskRunner.execute(injectException.get());
                 if (mapResult.requiresRetry()) {
                     return MapPartitionResult.failure(mapResult.error());
                 }
