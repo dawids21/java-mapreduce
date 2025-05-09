@@ -45,6 +45,10 @@ public class SystemProperties {
                 .toList();
     }
 
+    public static double processingPowerMultiplier() {
+        return Double.parseDouble(getProperty("PROCESSING_POWER_MULTIPLIER", "processing.power.multiplier"));
+    }
+
     private static String getProperty(String envKey, String key) {
         String envValue = System.getenv(envKey);
         var property = envValue != null ? envValue : System.getProperty(key, properties.getProperty(key));

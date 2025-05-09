@@ -29,6 +29,7 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
 
     private static final Logger LOGGER = Logger.getLogger(Controller.class.getSimpleName());
     private static final String NODE_ADDRESS = SystemProperties.getNodeAddress();
+    private static final double PROCESSING_POWER_MULTIPLIER = SystemProperties.processingPowerMultiplier();
 
     private final Map<Integer, ProcessingState> processingStates;
     private final Map<Integer, ProcessingInfo> processingInfos;
@@ -577,7 +578,7 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
 
     @Override
     public int getProcessingPower() throws RemoteException {
-        return RuntimeUtil.getProcessingPower();
+        return (int) (RuntimeUtil.getProcessingPower() * PROCESSING_POWER_MULTIPLIER);
     }
 
     public ProcessingStatus getProcessingStatus(int processingId) {
