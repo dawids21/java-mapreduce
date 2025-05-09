@@ -24,7 +24,7 @@ class WorkDistributor {
     private static final Logger LOGGER = Logger.getLogger(WorkDistributor.class.getName());
     private static final String NODE_ADDRESS = SystemProperties.getNodeAddress();
     private static final List<String> KNOWN_NODES = SystemProperties.getKnownNodes();
-
+    private static final double PROCESSING_POWER_MULTIPLIER = SystemProperties.processingPowerMultiplier();
     private record NodeInfo(String address, int processingPower) {
         static NodeInfo fromRemoteNode(String address) throws RemoteException, RemoteNodeUnavailableException {
             Integer result = RmiUtil.call(address, (remoteController) -> {
@@ -38,7 +38,7 @@ class WorkDistributor {
         }
 
         static NodeInfo fromLocalNode(String address) {
-            return new NodeInfo(address, RuntimeUtil.getProcessingPower());
+            return new NodeInfo(address, RuntimeUtil.getProcessingPower(PROCESSING_POWER_MULTIPLIER));
         }
     }
 

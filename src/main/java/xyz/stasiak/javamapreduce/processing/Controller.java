@@ -578,7 +578,7 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
 
     @Override
     public int getProcessingPower() throws RemoteException {
-        return (int) (RuntimeUtil.getProcessingPower() * PROCESSING_POWER_MULTIPLIER);
+        return RuntimeUtil.getProcessingPower(PROCESSING_POWER_MULTIPLIER);
     }
 
     public ProcessingStatus getProcessingStatus(int processingId) {
