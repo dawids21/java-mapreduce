@@ -113,7 +113,7 @@ public class ReducePhaseCoordinator {
 
                 var i = counter.incrementAndGet();
                 var injectException = new AtomicBoolean(false);
-                if (i == 5) {
+                if (i == 3) {
                     counter.set(0);
                     injectException.set(true);
                 }
