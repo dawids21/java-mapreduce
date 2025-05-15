@@ -34,12 +34,17 @@ public class Controller extends UnicastRemoteObject implements RemoteController 
     private final Map<Integer, ProcessingState> processingStates;
     private final Map<Integer, ProcessingInfo> processingInfos;
     private final WorkDistributor workDistributor = new WorkDistributor();
-    private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final ExecutorService executor = Executors.newFixedThreadPool(4,
+            runnable -> {
+                var thread = new Thread(runnable);
+                thread.setPriority(Thread.MAX_PRIORITY);
+                return thread;
+            });
     private final ScheduledExecutorService healthCheckExecutor = Executors.newSingleThreadScheduledExecutor(
-            r -> {
-                Thread t = new Thread(r);
-                t.setPriority(Thread.MAX_PRIORITY);
-                return t;
+            runnable -> {
+                var thread = new Thread(runnable);
+                thread.setPriority(Thread.MAX_PRIORITY);
+                return thread;
             });
 
     public Controller() throws RemoteException {
