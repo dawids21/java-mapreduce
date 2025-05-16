@@ -17,12 +17,7 @@ import xyz.stasiak.javamapreduce.processing.ProcessingException;
 
 public class RmiUtil {
 
-    private static final ExecutorService EXECUTOR = Executors.newFixedThreadPool(2,
-            runnable -> {
-                var thread = new Thread(runnable);
-                thread.setPriority(Thread.MAX_PRIORITY);
-                return thread;
-            });
+    private static final ExecutorService EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     public static void call(String nodeAddress, Consumer<RemoteController> consumer)
             throws RemoteException, RemoteNodeUnavailableException {
