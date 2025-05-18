@@ -57,11 +57,11 @@ class ReduceTaskRunner {
                 var objectReader = new ObjectInputStream(bufferedInputStream);
                 var writer = Files.newBufferedWriter(outputFile)) {
 
-            processObjects(objectReader, writer);
+            processTuples(objectReader, writer);
         }
     }
 
-    private void processObjects(ObjectInputStream reader, BufferedWriter writer)
+    private void processTuples(ObjectInputStream reader, BufferedWriter writer)
             throws IOException, ClassNotFoundException {
         String currentKey = null;
         var currentValues = new ArrayList<String>();
